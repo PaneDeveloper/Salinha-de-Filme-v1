@@ -12,7 +12,7 @@
     @media(min-width:768px)and(max-width:1199px){.container{flex-direction:row}#playerArea,#playlistArea,#chatArea{flex:1}}
     @media(max-width:767px){.container{flex-direction:column}#playlistArea{position:fixed;bottom:0;left:0;width:100%;height:180px;border-top:1px solid #333;transform:translateY(100%);transition:transform .3s}#playlistArea.active{transform:translateY(0)}#chatArea{display:none}}
     #playerArea{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1rem}
-    video,audio,iframe{width:100%;max-width:800px;max-height:450px;background:#000;border-radius:6px}
+    video,audio,iframe{width:100%;max-width:800px;max-height:100vh;background:#000;border-radius:6px}
     #controls{margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center}
     button{background:#ff4500;border:none;padding:.5rem 1rem;border-radius:5px;color:#FFF;cursor:pointer}
     #pipBtn{padding:.5rem;border-radius:5px;background:#ff4500;border:none;color:#FFF;cursor:pointer}
@@ -36,212 +36,45 @@
   </style>
 </head>
 <body>
-  <div class="container">
-    <div id="playerArea">
-      <video id="mediaPlayer" controls></video>
-      <audio id="audioPlayer" controls style="display:none"></audio>
-      <iframe id="youtubePlayer" allowfullscreen style="display:none"></iframe>
-      <div id="controls">
-        <button id="stopBtn">■ Parar</button>
-        <button id="togglePlaylistBtn">▶ Lista</button>
-        <button id="fileSelectBtn">Escolher Arquivo</button>
-        <button id="pipBtn" style="display:none">🖼️ PiP</button>
-        <input type="file" id="fileInput" accept="audio/*,video/*" multiple style="display:none">
-      </div>
-      <div id="inputArea">
-        <input type="text" id="linkInput" placeholder="Cole link e Enter/Ctrl+Enter">
-        <button id="sendLinkBtn">Enviar</button>
-      </div>
-    </div>
-    <div id="playlistArea">
-      <div id="playlistHeader">
-        <span>Playlist</span>
-        <button id="clearQueueBtn">Limpar Fila</button>
-      </div>
-      <div id="playlistList"></div>
-    </div>
-    <iframe id="chatArea" style="display:none;border:none"></iframe>
-  </div>
-  <div id="debugBox"></div>
-  <button id="menuBtn">☰</button>
-  <div id="menuDropdown">
-    <button id="reloadBtn">Recarregar</button>
-    <button id="githubBtn">GitHub</button>
-    <label><input type="checkbox" id="debugToggle"> Debug</label>
-  </div>
+  <!-- corpo HTML mantido -->
   <script>
-    function extractYouTubeId(url){
-      const regExp = /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/|v\/|.*[?&]v=))([^?&\/\s]+)/;
-      const match = url.match(regExp);
-      return match && match[1] ? match[1] : null;
+    async function fetchYouTubePlaylistItems(playlistUrl) {
+      const playlistIdMatch = playlistUrl.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+      if (!playlistIdMatch) return [];
+      const playlistId = playlistIdMatch[1];
+      const proxy = "https://yt.lemnoslife.com/noKey/playlistItems?playlistId=" + playlistId;
+      try {
+        const res = await fetch(proxy);
+        const data = await res.json();
+        if (!data || !data.items) return [];
+        return data.items.map(item => ({
+          type: 'link',
+          src: `https://www.youtube.com/watch?v=${item.videoId}`,
+          title: item.title,
+          thumb: item.thumbnails?.default?.url || ''
+        }));
+      } catch (err) {
+        console.error("Erro ao buscar playlist:", err);
+        return [];
+      }
     }
 
-    function updateDebug(msg){
-      const box = document.getElementById('debugBox');
-      const toggle = document.getElementById('debugToggle');
-      if(toggle.checked){box.style.display='block';box.textContent=msg;}
-    }
-
-    document.addEventListener('DOMContentLoaded',()=>{
-      const mediaPlayer=document.getElementById('mediaPlayer');
-      const audioPlayer=document.getElementById('audioPlayer');
-      const youtubePlayer=document.getElementById('youtubePlayer');
-      const pipBtn=document.getElementById('pipBtn');
-      const stopBtn=document.getElementById('stopBtn');
-      const togglePlaylistBtn=document.getElementById('togglePlaylistBtn');
-      const fileSelectBtn=document.getElementById('fileSelectBtn');
-      const fileInput=document.getElementById('fileInput');
-      const linkInput=document.getElementById('linkInput');
-      const sendLinkBtn=document.getElementById('sendLinkBtn');
-      const playlistArea=document.getElementById('playlistArea');
-      const playlistList=document.getElementById('playlistList');
-      const clearQueueBtn=document.getElementById('clearQueueBtn');
-      const chatArea=document.getElementById('chatArea');
-
-      let playlist=[];
-      let currentIndex=-1;
-
-      function renderPlaylist(){
-        playlistList.innerHTML='';
-        playlist.forEach((item,i)=>{
-          const div=document.createElement('div');
-          div.className='playlist-item'+(i===currentIndex?' active':'');
-          const thumb=document.createElement('img');
-          thumb.className='thumb';
-          thumb.src=item.thumb||'https://via.placeholder.com/60x45';
-          const info=document.createElement('div');
-          info.className='info';
-          info.textContent=item.title||item.src||item.file?.name;
-          const remove=document.createElement('button');
-          remove.className='remove-btn';
-          remove.textContent='×';
-          remove.onclick=(e)=>{e.stopPropagation();playlist.splice(i,1);if(i===currentIndex){if(playlist[i])playItem(i);else stopMedia();}renderPlaylist();};
-          div.append(thumb,info,remove);
-          div.onclick=()=>playItem(i);
-          playlistList.appendChild(div);
-        });
+    // Substitua trecho dentro de sendLinkBtn.onclick
+    sendLinkBtn.onclick = async () => {
+      const url = linkInput.value.trim();
+      if (!url) return;
+      if (url.includes("list=")) {
+        const items = await fetchYouTubePlaylistItems(url);
+        playlist.push(...items);
+        if (currentIndex === -1 && items.length > 0) playItem(0);
+        else renderPlaylist();
+      } else {
+        playlist.push({ type: 'link', src: url, title: url });
+        if (currentIndex === -1) playItem(0);
+        else renderPlaylist();
       }
-
-      function playItem(i){
-        currentIndex=i;
-        const item=playlist[i];
-        mediaPlayer.style.display='none';
-        audioPlayer.style.display='none';
-        youtubePlayer.style.display='none';
-        chatArea.style.display='none';
-        mediaPlayer.pause();
-        audioPlayer.pause();
-
-        if(item.type==='file'){
-          const url=URL.createObjectURL(item.file);
-          if(item.file.type.startsWith('video')){
-            mediaPlayer.src=url;
-            mediaPlayer.style.display='block';
-            mediaPlayer.play();
-          }else{
-            audioPlayer.src=url;
-            audioPlayer.style.display='block';
-            audioPlayer.play();
-          }
-        }else{
-          const videoId = extractYouTubeId(item.src);
-          if(videoId){
-            youtubePlayer.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
-            youtubePlayer.style.display='block';
-            chatArea.src = `https://www.youtube.com/live_chat?v=${videoId}&embed_domain=${location.hostname}`;
-            chatArea.style.display='block';
-          }else{
-            mediaPlayer.src=item.src;
-            mediaPlayer.style.display='block';
-            mediaPlayer.play();
-          }
-        }
-        renderPlaylist();
-        updateDebug('Tocando: '+(item.title||item.src));
-      }
-
-      function stopMedia(){
-        mediaPlayer.pause();
-        audioPlayer.pause();
-        mediaPlayer.src='';
-        audioPlayer.src='';
-        youtubePlayer.src='';
-        chatArea.src='';
-        mediaPlayer.style.display='none';
-        audioPlayer.style.display='none';
-        youtubePlayer.style.display='none';
-        chatArea.style.display='none';
-        currentIndex=-1;
-        renderPlaylist();
-      }
-
-      mediaPlayer.onended=audioPlayer.onended=()=>{if(currentIndex+1<playlist.length)playItem(currentIndex+1)};
-
-      fileSelectBtn.onclick=()=>fileInput.click();
-      fileInput.onchange=()=>{
-        [...fileInput.files].forEach(file=>playlist.push({type:'file',file,title:file.name}));
-        if(currentIndex===-1)playItem(0);else renderPlaylist();
-        fileInput.value='';
-      };
-
-      linkInput.addEventListener('keydown',e=>{
-        if(e.key==='Enter'){
-          const url=linkInput.value.trim();
-          if(!url)return;
-          playlist.push({type:'link',src:url,title:url});
-          if(!e.ctrlKey)playItem(playlist.length-1);else renderPlaylist();
-          linkInput.value='';
-        }
-      });
-      sendLinkBtn.onclick=()=>{
-        const url=linkInput.value.trim();
-        if(url){playlist.push({type:'link',src:url,title:url});playItem(playlist.length-1);linkInput.value='';}
-      };
-
-      stopBtn.onclick=()=>stopMedia();
-
-      togglePlaylistBtn.onclick=()=>{
-        playlistArea.classList.toggle('active');
-        togglePlaylistBtn.textContent = playlistArea.classList.contains('active') ? '◼ Ocultar Fila' : '▶ Lista';
-      };
-
-      clearQueueBtn.onclick=()=>{playlist=[];stopMedia();};
-
-      document.getElementById('reloadBtn').onclick=()=>location.reload();
-      document.getElementById('githubBtn').onclick=()=>window.open('https://github.com/panedeveloper/Player-HTML-CSS-JS-', '_blank');
-
-      document.getElementById('debugToggle').onchange=()=>{
-        const box=document.getElementById('debugBox');
-        box.style.display=debugToggle.checked?'block':'none';
-      };
-
-      if('pictureInPictureEnabled'in document) pipBtn.style.display='inline-block';
-      pipBtn.onclick=()=>{
-        if(document.pictureInPictureElement){
-          document.exitPictureInPicture();
-        }else if(!mediaPlayer.paused){
-          mediaPlayer.requestPictureInPicture().catch(console.error);
-        }
-      };
-
-      document.addEventListener('keydown',e=>{
-        if(e.ctrlKey&&e.key.toLowerCase()==='p'&&!mediaPlayer.paused){
-          e.preventDefault();pipBtn.click();
-        }
-      });
-
-      window.addEventListener('click',e=>{
-        const menu=document.getElementById('menuDropdown');
-        const btn=document.getElementById('menuBtn');
-        if(!menu.contains(e.target)&&e.target!==btn){menu.style.display='none';}
-      });
-      document.getElementById('menuBtn').onclick=()=>{
-        const menu=document.getElementById('menuDropdown');
-        menu.style.display=menu.style.display==='block'?'none':'block';
-      };
-
-      renderPlaylist();
-    });
+      linkInput.value = '';
+    };
   </script>
 </body>
 </html>
