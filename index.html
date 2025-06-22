@@ -70,6 +70,18 @@
     <label><input type="checkbox" id="debugToggle"> Debug</label>
   </div>
   <script>
+    function extractYouTubeId(url){
+      const regExp = /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/|v\/|.*[?&]v=))([^?&\/\s]+)/;
+      const match = url.match(regExp);
+      return match && match[1] ? match[1] : null;
+    }
+
+    function updateDebug(msg){
+      const box = document.getElementById('debugBox');
+      const toggle = document.getElementById('debugToggle');
+      if(toggle.checked){box.style.display='block';box.textContent=msg;}
+    }
+
     document.addEventListener('DOMContentLoaded',()=>{
       const mediaPlayer=document.getElementById('mediaPlayer');
       const audioPlayer=document.getElementById('audioPlayer');
@@ -84,8 +96,7 @@
       const playlistArea=document.getElementById('playlistArea');
       const playlistList=document.getElementById('playlistList');
       const clearQueueBtn=document.getElementById('clearQueueBtn');
-      const debugToggle=document.getElementById('debugToggle');
-      const debugBox=document.getElementById('debugBox');
+      const chatArea=document.getElementById('chatArea');
 
       let playlist=[];
       let currentIndex=-1;
@@ -117,6 +128,7 @@
         mediaPlayer.style.display='none';
         audioPlayer.style.display='none';
         youtubePlayer.style.display='none';
+        chatArea.style.display='none';
         mediaPlayer.pause();
         audioPlayer.pause();
 
@@ -132,9 +144,12 @@
             audioPlayer.play();
           }
         }else{
-          if(item.src.includes('youtube.com')||item.src.includes('youtu.be')){
-            youtubePlayer.src=item.src.replace('/shorts/','/watch?v=').replace('youtu.be/','youtube.com/embed/');
+          const videoId = extractYouTubeId(item.src);
+          if(videoId){
+            youtubePlayer.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
             youtubePlayer.style.display='block';
+            chatArea.src = `https://www.youtube.com/live_chat?v=${videoId}&embed_domain=${location.hostname}`;
+            chatArea.style.display='block';
           }else{
             mediaPlayer.src=item.src;
             mediaPlayer.style.display='block';
@@ -142,6 +157,7 @@
           }
         }
         renderPlaylist();
+        updateDebug('Tocando: '+(item.title||item.src));
       }
 
       function stopMedia(){
@@ -149,10 +165,12 @@
         audioPlayer.pause();
         mediaPlayer.src='';
         audioPlayer.src='';
+        youtubePlayer.src='';
+        chatArea.src='';
         mediaPlayer.style.display='none';
         audioPlayer.style.display='none';
-        youtubePlayer.src='';
         youtubePlayer.style.display='none';
+        chatArea.style.display='none';
         currentIndex=-1;
         renderPlaylist();
       }
@@ -192,7 +210,10 @@
       document.getElementById('reloadBtn').onclick=()=>location.reload();
       document.getElementById('githubBtn').onclick=()=>window.open('https://github.com/panedeveloper/Player-HTML-CSS-JS-', '_blank');
 
-      debugToggle.onchange=()=>debugBox.style.display=debugToggle.checked?'block':'none';
+      document.getElementById('debugToggle').onchange=()=>{
+        const box=document.getElementById('debugBox');
+        box.style.display=debugToggle.checked?'block':'none';
+      };
 
       if('pictureInPictureEnabled'in document) pipBtn.style.display='inline-block';
       pipBtn.onclick=()=>{
