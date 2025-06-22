@@ -96,7 +96,7 @@
       }
 
       function extractYouTubeID(url) {
-        const match = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})(?:\?|&|$)/);
+        const match = url.match(/(?:v=|youtu.be\/|embed\/|shorts\/)([0-9A-Za-z_-]{11})/);
         return match ? match[1] : null;
       }
 
@@ -189,7 +189,6 @@
 
       video.onended = audio.onended = () => {
         if (currentIndex + 1 < playlist.length) playItem(currentIndex + 1);
-        else stopMedia();
       };
 
       togglePlaylistBtn.onclick = () => {
