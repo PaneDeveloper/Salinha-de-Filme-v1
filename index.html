@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Player de Áudio e Vídeo</title>
+  <style>
+    /* Theme auto */
+    @media (prefers-color-scheme: light) {
+      html, body { background: #FFF; color: #000; }
+      #linkInput, #playlistArea, #chatArea { background: #EEE; color: #000; }
+      video, audio, iframe { background: #FFF; }
+      button { background: #0078D4; color: #FFF; }
+      #menuBtn { background: #EEE; color: #000; }
+      #menuDropdown { background: #EEE; color: #000; }
+    }
+    @media (prefers-color-scheme: dark) {
+      html, body { background: #121212; color: #EEE; }
+      #linkInput, #playlistArea, #chatArea { background: #1f1f1f; color: #EEE; }
+      video, audio, iframe { background: #000; }
+      button { background: #ff4500; color: #FFF; }
+      #menuBtn { background: #2a2a2a; color: #FFF; }
+      #menuDropdown { background: #2a2a2a; color: #FFF; }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: Arial, sans-serif; }
+    .container { display: flex; height: 100%; }
+    @media (min-width: 1200px) { .container { flex-direction: row; } #playerArea { width: 70%; } #playlistArea { width: 15%; } #chatArea { width: 15%; } }
+    @media (min-width: 768px) and (max-width: 1199px) { .container { flex-direction: row; } #playerArea, #playlistArea, #chatArea { flex: 1; } }
+    @media (max-width: 767px) { .container { flex-direction: column; } #playlistArea { position: fixed; bottom: 0; left: 0; width: 100%; height: 200px; border-top: 1px solid #333; transform: translateY(100%); transition: transform 0.3s; } #playlistArea.active { transform: translateY(0); } #chatArea { display: none; } }
+
+    #playerArea { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1rem; }
+    video, audio, iframe { width: 100%; max-width: 800px; max-height: 450px; border-radius: 6px; }
+
+    #controls { margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; }
+    button { border: none; padding: 0.5rem 1rem; border-radius: 5px; cursor: pointer; }
+
+    #inputArea { margin-top: 1rem; display: flex; gap: 0.5rem; width: 100%; max-width: 800px; }
+    #linkInput { flex: 1; padding: 0.5rem; border-radius: 4px; border: none; }
+
+    #playlistArea, #chatArea { overflow-y: auto; border-left: 1px solid #333; }
+    #playlistArea { padding: 0.5rem; }
+    #playlistHeader { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; }
+    #clearQueueBtn { padding: 0.25rem 0.5rem; font-size: 0.9rem; }
+    #playlistList { padding: 0.5rem; }
+    .playlist-item { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; border-radius: 4px; padding: 0.5rem; position: relative; cursor: pointer; }
+    .playlist-item.active { opacity: 0.8; }
+    .thumb { width: 60px; height: 45px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
+    .info { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .remove-btn { position: absolute; top: 50%; right: 5px; transform: translateY(-50%); background: red; border: none; color: #FFF; border-radius: 50%; width: 20px; height: 20px; font-size: 14px; display: none; cursor: pointer; }
+    .playlist-item:hover .remove-btn { display: block; }
+
+    #menuBtn { position: fixed; bottom: 10px; right: 10px; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; border: none; }
+    #menuDropdown { display: none; position: fixed; bottom: 60px; right: 10px; border-radius: 5px; padding: 0.5rem; }
+    #menuDropdown button, #menuDropdown label { display: block; background: none; border: none; padding: 0.5rem; text-align: left; cursor: pointer; }
+    #menuDropdown button:hover, #menuDropdown label:hover { opacity: 0.7; }
+    #debugBox { display: none; position: fixed; bottom: 0; left: 0; padding: 0.5rem; font-family: monospace; font-size: 0.8rem; max-width: 300px; max-height: 200px; overflow-y: auto; border-top-right-radius: 6px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="playerArea">
+      <video id="mediaPlayer" controls></video>
+      <audio id="audioPlayer" controls style="display:none;"></audio>
+      <iframe id="youtubePlayer" allowfullscreen style="display:none;"></iframe>
+      <div id="controls">
+        <button id="stopBtn">■ Parar</button>
+        <button id="togglePlaylistBtn">▶ Lista</button>
+        <button id="fileSelectBtn">Escolher Arquivo</button>
+        <input type="file" id="fileInput" multiple accept="audio/*,video/*" style="display:none;">
+      </div>
+      <div id="inputArea">
+        <input type="text" id="linkInput" placeholder="Cole link e Enter/Ctrl+Enter">
+        <button id="sendLinkBtn">Enviar</button>
+      </div>
+    </div>
+    <div id="playlistArea">
+      <div id="playlistHeader">
+        <span>Playlist</span>
+        <button id="clearQueueBtn">Limpar Fila</button>
+      </div>
+      <div id="playlistList"></div>
+    </div>
+    <iframe id="chatArea" style="display:none;border:none;"></iframe>
+  </div>
+  <div id="debugBox"></div>
+  <button id="menuBtn">☰</button>
+  <div id="menuDropdown">
+    <button id="reloadBtn">Recarregar</button>
+    
+    <button id="githubBtn">GitHub</button>
+    <label><input type="checkbox" id="debugToggle"> Debug</label>
+  </div>
+  <script>
+    // Elements
+    const mediaPlayer = document.getElementById('mediaPlayer');
+    const audioPlayer = document.getElementById('audioPlayer');
+    const youtubePlayer = document.getElementById('youtubePlayer');
+    const chatArea = document.getElementById('chatArea');
+    const fileInput = document.getElementById('fileInput');
+    const fileSelectBtn = document.getElementById('fileSelectBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const toggleBtn = document.getElementById('togglePlaylistBtn');
+    const linkInput = document.getElementById('linkInput');
+    const sendLinkBtn = document.getElementById('sendLinkBtn');
+    const playlistArea = document.getElementById('playlistArea');
+    const listEl = document.getElementById('playlistList');
+    const clearQueueBtn = document.getElementById('clearQueueBtn');
+    const menuBtn = document.getElementById('menuBtn');
+    const menuDropdown = document.getElementById('menuDropdown');
+    const reloadBtn = document.getElementById('reloadBtn');
+    const githubBtn = document.getElementById('githubBtn');
+    const debugToggle = document.getElementById('debugToggle');
+    const debugBox = document.getElementById('debugBox');
+    const clearQueueBtn = document.getElementById('clearQueueBtn');
+
+    let playlist = [];
+    let currentIndex = -1;
+
+    // ... rest of functions ...
+
+    // Event bindings for playlist header
+    clearQueueBtn.onclick = () => { playlist = []; render(); };
+
+    // Event bindings for menu
+    menuBtn.onclick = () => menuDropdown.style.display = menuDropdown.style.display === 'block' ? 'none' : 'block';
+    reloadBtn.onclick = () => location.reload();
+    githubBtn.onclick = () => window.open('https://github.com/PaneDeveloper/Player-HTML-CSS-JS-', '_blank');
+    debugToggle.onchange = () => debugBox.style.display = debugToggle.checked ? 'block' : 'none';
+
+    window.addEventListener('click', e => {
+      if (!menuDropdown.contains(e.target) && e.target !== menuBtn) {
+        menuDropdown.style.display = 'none';
+      }
+    });
+
+    render();
+    window.addEventListener('click', e => { if (!menuDropdown.contains(e.target) && e.target !== menuBtn) menuDropdown.style.display = 'none'; });
+    render();
+  </script>
+</body>
+</html>
