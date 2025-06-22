@@ -70,45 +70,159 @@
   </div>
   <script>
     document.addEventListener("DOMContentLoaded", function () {
-      const pipBtn = document.getElementById("pipBtn");
       const video = document.getElementById("mediaPlayer");
-
-      if ('pictureInPictureEnabled' in document && typeof video.requestPictureInPicture === 'function') {
-        pipBtn.style.display = "inline-block";
-        pipBtn.onclick = () => {
-          if (document.pictureInPictureElement) {
-            document.exitPictureInPicture();
-          } else {
-            video.requestPictureInPicture().catch(err => console.warn("PiP error:", err));
-          }
-        };
-      }
-
+      const audio = document.getElementById("audioPlayer");
+      const pipBtn = document.getElementById("pipBtn");
       const togglePlaylistBtn = document.getElementById("togglePlaylistBtn");
       const playlistArea = document.getElementById("playlistArea");
+      const fileInput = document.getElementById("fileInput");
+      const fileSelectBtn = document.getElementById("fileSelectBtn");
+      const linkInput = document.getElementById("linkInput");
+      const sendLinkBtn = document.getElementById("sendLinkBtn");
+      const playlistList = document.getElementById("playlistList");
+      const clearQueueBtn = document.getElementById("clearQueueBtn");
+      const menuBtn = document.getElementById("menuBtn");
+      const menuDropdown = document.getElementById("menuDropdown");
+      const reloadBtn = document.getElementById("reloadBtn");
+
+      let playlist = [];
+      let currentIndex = -1;
+
+      function renderPlaylist() {
+        playlistList.innerHTML = "";
+        playlist.forEach((item, i) => {
+          const div = document.createElement("div");
+          div.className = "playlist-item" + (i === currentIndex ? " active" : "");
+          const thumb = document.createElement("img");
+          thumb.className = "thumb";
+          thumb.src = item.thumb || "https://via.placeholder.com/60x45";
+          const info = document.createElement("div");
+          info.className = "info";
+          info.textContent = item.title || item.name || item.src;
+          const remove = document.createElement("button");
+          remove.className = "remove-btn";
+          remove.textContent = "×";
+          remove.onclick = (e) => {
+            e.stopPropagation();
+            playlist.splice(i, 1);
+            if (i === currentIndex) stopMedia();
+            renderPlaylist();
+          };
+          div.append(thumb, info, remove);
+          div.onclick = () => playItem(i);
+          playlistList.appendChild(div);
+        });
+      }
+
+      function playItem(i) {
+        currentIndex = i;
+        const item = playlist[i];
+        stopMedia();
+
+        if (item.type === "file") {
+          const url = URL.createObjectURL(item.file);
+          if (item.file.type.startsWith("video")) {
+            video.src = url;
+            video.style.display = "block";
+            video.play();
+          } else {
+            audio.src = url;
+            audio.style.display = "block";
+            audio.play();
+          }
+        } else {
+          video.src = item.src;
+          video.style.display = "block";
+          video.play();
+        }
+
+        renderPlaylist();
+      }
+
+      function stopMedia() {
+        video.pause();
+        audio.pause();
+        video.src = "";
+        audio.src = "";
+        video.style.display = "none";
+        audio.style.display = "none";
+        currentIndex = -1;
+      }
+
+      video.onended = audio.onended = () => {
+        if (currentIndex + 1 < playlist.length) {
+          playItem(currentIndex + 1);
+        } else {
+          stopMedia();
+        }
+      };
 
       togglePlaylistBtn.onclick = () => {
         playlistArea.classList.toggle("active");
         togglePlaylistBtn.textContent = playlistArea.classList.contains("active") ? "◀ Ocultar Fila" : "▶ Lista";
       };
 
-      document.getElementById("clearQueueBtn").onclick = () => {
-        document.getElementById("playlistList").innerHTML = '';
+      clearQueueBtn.onclick = () => {
+        playlist = [];
+        stopMedia();
+        renderPlaylist();
       };
 
-      document.getElementById("reloadBtn").onclick = () => location.reload();
-      document.getElementById("menuBtn").onclick = () => {
-        const dropdown = document.getElementById("menuDropdown");
-        dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
+      fileSelectBtn.onclick = () => fileInput.click();
+
+      fileInput.onchange = () => {
+        [...fileInput.files].forEach((file) => {
+          playlist.push({ type: "file", file, title: file.name });
+        });
+        if (currentIndex === -1) playItem(0);
+        else renderPlaylist();
+        fileInput.value = "";
+      };
+
+      linkInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          const url = linkInput.value.trim();
+          if (!url) return;
+          playlist.push({ type: "link", src: url, title: url });
+          if (!e.ctrlKey) playItem(playlist.length - 1);
+          else renderPlaylist();
+          linkInput.value = "";
+        }
+      });
+
+      sendLinkBtn.onclick = () => {
+        const url = linkInput.value.trim();
+        if (url) {
+          playlist.push({ type: "link", src: url, title: url });
+          playItem(playlist.length - 1);
+          linkInput.value = "";
+        }
+      };
+
+      if ("pictureInPictureEnabled" in document && typeof video.requestPictureInPicture === "function") {
+        pipBtn.style.display = "inline-block";
+        pipBtn.onclick = () => {
+          if (document.pictureInPictureElement) {
+            document.exitPictureInPicture();
+          } else {
+            video.requestPictureInPicture().catch((err) => console.warn("PiP error:", err));
+          }
+        };
+      }
+
+      reloadBtn.onclick = () => location.reload();
+
+      menuBtn.onclick = () => {
+        menuDropdown.style.display = menuDropdown.style.display === "block" ? "none" : "block";
       };
 
       window.addEventListener("click", (e) => {
-        const menu = document.getElementById("menuDropdown");
-        const menuBtn = document.getElementById("menuBtn");
-        if (!menu.contains(e.target) && e.target !== menuBtn) {
-          menu.style.display = "none";
+        if (!menuDropdown.contains(e.target) && e.target !== menuBtn) {
+          menuDropdown.style.display = "none";
         }
       });
+
+      renderPlaylist();
     });
   </script>
 </body>
