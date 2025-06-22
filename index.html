@@ -89,8 +89,10 @@
       const dbgT=document.getElementById('debugToggle');
       const dbgBox=document.getElementById('debugBox');
       let playlist=[],cur=-1;
+
       const getId=u=>{try{if(u.includes('youtu.be/'))return u.split('youtu.be/')[1].split('?')[0];const U=new URL(u);if(U.pathname.startsWith('/shorts/'))return U.pathname.split('/shorts/')[1];return U.searchParams.get('v')}catch{return null}};
       const isLive=id=>id&&id.includes('live');
+
       const render=()=>{
         listEl.innerHTML='';playlist.forEach((it,i)=>{
           const d=document.createElement('div');d.className='playlist-item'+(i===cur?' active':'');
@@ -101,6 +103,7 @@
           d.append(t,info,r);d.onclick=()=>play(i);listEl.append(d);
         });
       };
+
       const play=i=>{
         cur=i;const it=playlist[i];[mediaPlayer,audioPlayer,ytPlayer,chatArea].forEach(e=>e.style.display='none');[mediaPlayer,audioPlayer].forEach(e=>e.pause());
         const id=getId(it.src||'');
@@ -109,15 +112,30 @@
         else{mediaPlayer.src=it.src;mediaPlayer.style.display='block';mediaPlayer.play()}
         render();if(dbgT.checked)dbgBox.textContent=`Tocando: ${it.title||it.src}`;
       };
+
       const stop=()=>{[mediaPlayer,audioPlayer].forEach(e=>{e.pause();e.src='';e.style.display='none'});ytPlayer.src='';ytPlayer.style.display='none';chatArea.style.display='none';cur=-1;render()};
+
       mediaPlayer.onended=audioPlayer.onended=()=>{if(cur+1<playlist.length)play(cur+1)};
+
       fileBtn.onclick=()=>fileIn.click();fileIn.onchange=()=>{[...fileIn.files].forEach(f=>playlist.push({type:'file',file:f,title:f.name}));(cur===-1?play:render)(0);fileIn.value=''};
+
       linkIn.onkeydown=e=>{if(e.key==='Enter'){const u=linkIn.value.trim();if(!u)return;playlist.push({type:'link',src:u,title:u});e.ctrlKey?render():play(playlist.length-1);linkIn.value=''}};
+
       sendBtn.onclick=()=>{const u=linkIn.value.trim();if(u){playlist.push({type:'link',src:u,title:u});play(playlist.length-1);linkIn.value=''}};
-      stopBtn.onclick=stop;toggleBtn.onclick=()=>playlistArea.classList.toggle('active');
+
+      stopBtn.onclick=stop;
+
+      toggleBtn.onclick=()=>{
+        playlistArea.classList.toggle('active');
+        toggleBtn.textContent = playlistArea.classList.contains('active') ? '◼ Ocultar Fila' : '▶ Lista';
+      };
+
       clearQ.onclick=()=>{playlist=[];render()};
+
       menuBtn.onclick=()=>menuD.style.display=menuD.style.display==='block'?'none':'block';
-      reloadBtn.onclick=()=>location.reload();ghBtn.onclick=()=>window.open('https://github.com/PaneDeveloper/Player-HTML-CSS-JS-','_blank');dbgT.onchange=()=>dbgBox.style.display=dbgT.checked?'block':'none';
+      reloadBtn.onclick=()=>location.reload();
+      ghBtn.onclick=()=>window.open('https://github.com/PaneDeveloper/Player-HTML-CSS-JS-','_blank');
+      dbgT.onchange=()=>dbgBox.style.display=dbgT.checked?'block':'none';
       window.addEventListener('click',e=>{if(!menuD.contains(e.target)&&e.target!==menuBtn)menuD.style.display='none'});
       render();
     });
