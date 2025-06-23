@@ -1,449 +1,199 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <title>Player de Áudio e Vídeo + Chat de Voz</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <style>
-    body { font-family: Arial, sans-serif; background: #f4f4f4; color: #333; text-align: center; padding: 20px; }
-    .player-container { position: relative; background: white; padding: 20px; border-radius: 10px; display: inline-block; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-    #menuBtn { position: absolute; top: 10px; right: 10px; background: transparent; border: none; font-size: 18px; cursor: pointer; }
-    .menu-dropdown { display: none; position: absolute; top: 35px; right: 10px; background: white; border: 1px solid #ccc; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-    .menu-dropdown button { display: block; background: none; border: none; padding: 8px 12px; width: 100%; text-align: left; cursor: pointer; }
-    .menu-dropdown button:hover { background: #f0f0f0; }
-    .button { padding: 10px 20px; background-color: #FF4500; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
-    .dialog-overlay { position: fixed; top: 0; left: 0; width:100%; height:100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; }
-    .dialog { background: white; padding: 20px; border-radius: 10px; width: 320px; text-align: left; }
-    .dialog input[type=file] { width: 100%; }
-    .dialog input[type=text] { width: calc(100% - 80px); }
-    .dialog .history { margin-top: 10px; max-height: 100px; overflow-y: auto; font-size: 14px; }
-    .dialog .history div { margin: 2px 0; cursor: pointer; color: #007acc; }
-    .audio-device-select { margin-top: 10px; }
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Player + Voice Chat</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#121212;color:#EEE;font-family:Arial,sans-serif;display:flex;flex-direction:column;height:100vh;}
+  #mainUI{flex:1;display:flex;overflow:hidden;}
+  #playerArea{flex:2;background:#222;display:flex;flex-direction:column;align-items:center;padding:1rem;}
+  video,audio,iframe{width:100%;max-width:800px;border-radius:6px;background:#000;}
+  #controls{margin:1rem;display:flex;gap:.5rem;}
+  .btn{background:#ff4500;border:none;color:#FFF;padding:.5rem 1rem;border-radius:5px;cursor:pointer;}
+  #chatArea,#membersArea{flex:1;display:none;flex-direction:column;background:#1f1f1f;border-left:1px solid #333;}
+  #membersArea.active,#chatArea.active{display:flex;}
+  #membersList{flex:0 0 auto;padding:0.5rem;overflow-y:auto;}
+  .member{display:flex;align-items:center;gap:.5rem;padding:.5rem;position:relative;}
+  .member.activeSpeaker .avatar{border:2px solid #00f;border-radius:50%}
+  .avatar{width:32px;height:32px;border-radius:50%;background:#555;}
+  .member .actions{position:absolute;right:5px;top:5px;display:none;}
+  .member.admin .actions{display:flex;gap:5px;}
+  #chatLog{flex:1;overflow-y:auto;padding:0.5rem;}
+  #chatInputArea{padding:0.5rem;display:flex;gap:0.5rem;}
+  #chatInput{flex:1;padding:.5rem;border-radius:4px;border:none;background:#222;color:#EEE;}
+  #sendChatBtn{display:none;}
+  #menuSetup,#inCallUI{padding:1rem;}
+  #menuSetup input{margin:0 .5rem;}
+</style>
+</head><body>
 
-    /* --- CHAT DE VOZ --- */
-    #chatSection { margin-top: 30px; width: 100%; max-width: 800px; margin-left: auto; margin-right: auto; }
-    #chatSection h2 { margin-bottom: 10px; }
-    #initialUI, #chatRoom { background: #fff; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); padding: 15px; }
-    #initialUI { display: flex; flex-direction: column; align-items: center; }
-    #initialUI input { padding: .6rem; margin-bottom: .5rem; width: 200px; border-radius: 5px; border: 1px solid #ccc; }
-    #initialUI button { margin: 0 .5rem .5rem 0; }
-    #status { margin-top: .5rem; color: #666; }
+<!-- Setup -->
+<div id="menuSetup">
+  <input id="roomCode" placeholder="4 dígitos MX09"/>
+  <button id="createRoom" class="btn">Criar Sala</button>
+  <button id="joinRoom" class="btn">Entrar na Sala</button>
+  <div id="activeRooms"></div>
+</div>
 
-    #activeRooms { margin-top: 1rem; text-align: left; width: 100%; }
-    .roomItem { background: #f0f0f0; padding: .4rem .8rem; border-radius: 4px; margin: .2rem 0; cursor: pointer; }
-
-    #chatRoom { display: none; flex-direction: column; }
-    #roomHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem; }
-    #participants { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem; }
-    .participant { background: #e0e0e0; padding: .4rem .8rem; border-radius: 4px; position: relative; display: flex; align-items: center; gap: .5rem; }
-    .participant.speaking { box-shadow: 0 0 0 2px #4EA8DE; }
-    .participant img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
-    .participant .name { font-weight: 600; }
-
-    .partMenu { position: absolute; background: #fff; padding: .4rem; border-radius: 4px; display: flex; flex-direction: column; gap: .3rem; top: 100%; right: 0; box-shadow: 0 0 5px rgba(0,0,0,0.2); z-index: 10; }
-    .partMenu button { background: none; border: none; text-align: left; cursor: pointer; }
-
-    #controlsRow { display: flex; gap: .5rem; margin-bottom: .5rem; }
-    #controlsRow button { padding: .5rem 1rem; }
-
-    #chatBox { height: 200px; overflow-y: auto; background: #fafafa; border-radius: 4px; padding: .5rem; margin-bottom: .5rem; text-align: left; }
-    .message { margin-bottom: .5rem; word-break: break-word; }
-    .message .user { font-weight: 600; margin-right: .3rem; }
-
-    #msgArea { display: flex; gap: .5rem; }
-    #msgInput { flex: 1; padding: .6rem; border-radius: 4px; border: 1px solid #ccc; }
-    #sendMsgBtn, #emojiBtn { padding: .6rem 1rem; }
-
-    #emojiPanel { display: none; position: absolute; bottom: 80px; right: 30px; background: #fff; padding: .5rem; border-radius: 4px; box-shadow: 0 0 5px rgba(0,0,0,0.2); }
-    #emojiPanel span { cursor: pointer; padding: .2rem; font-size: 1.2rem; }
-  </style>
-</head>
-
-<body>
-  <!-- PLAYER ORIGINAL -->
-  <div class="player-container">
-    <button id="menuBtn">⋮</button>
-    <div class="menu-dropdown" id="menuDropdown">
-      <button id="clearHistoryBtn">Limpar Histórico</button>
-    </div>
-    <video id="mediaPlayer" controls style="width:100%; max-height:300px;"></video>
-    <div style="margin-top:10px;">
-      <button class="button" id="openDialogBtn">Modo Vídeo/Áudio</button>
+<!-- Main -->
+<div id="mainUI">
+  <div id="playerArea">
+    <video id="mediaPlayer" controls></video>
+    <div id="controls">
+      <button id="stopBtn" class="btn">Parar</button>
+      <!-- PiP, playlist etc já integrados -->
     </div>
   </div>
 
-  <div class="dialog-overlay" id="dialogOverlay">
-    <div class="dialog">
-      <h3>Selecionar Arquivo ou Link</h3>
-      <input type="file" id="fileInput" accept="audio/*,video/*"><br><br>
-      <button class="button" id="chooseFileBtn" style="margin-bottom:10px;">Escolher Vídeo/Áudio</button><br>
-      <input type="text" id="linkInput" placeholder="Cole um link e pressione Enter">
-      <button class="button" id="sendLinkBtn">Enviar</button>
-      <div class="history" id="historyList"></div>
-    </div>
+  <div id="membersArea">
+    <div id="membersList"></div>
   </div>
 
-  <div class="dialog-overlay" id="deviceOverlay">
-    <div class="dialog">
-      <h3>Selecione Saída de Áudio</h3>
-      <select id="audioDeviceSelect" class="audio-device-select"></select><br><br>
-      <button class="button" id="deviceOkBtn">OK</button>
+  <div id="chatArea">
+    <div id="chatLog"></div>
+    <div id="chatInputArea">
+      <input id="chatInput" placeholder="Digite sua mensagem"/>
+      <button id="sendChatBtn" class="btn">Enviar</button>
     </div>
   </div>
+</div>
 
-  <!-- NOVO: CHAT DE VOZ -->
-  <section id="chatSection">
-    <h2>💬 Chat de Voz</h2>
-    <div id="initialUI">
-      <input id="roomInput" placeholder="Código da Sala (4)" maxlength="4"/>
-      <div>
-        <button id="createBtn">Criar Sala</button>
-        <button id="joinBtn">Entrar na Sala</button>
-      </div>
-      <div id="status">Nenhuma conexão ativa.</div>
-      <div id="activeRooms">
-        <h4>Salas locais ativas:</h4>
-        <div id="roomsList"></div>
-      </div>
-    </div>
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script>
+(async()=>{
+  const roomSetup = document.getElementById('menuSetup');
+  const mainUI = document.getElementById('mainUI');
+  const membersArea = document.getElementById('membersArea');
+  const chatArea = document.getElementById('chatArea');
+  const roomCodeInput = document.getElementById('roomCode');
+  const createBtn = document.getElementById('createRoom');
+  const joinBtn = document.getElementById('joinRoom');
+  const membersList = document.getElementById('membersList');
+  const chatLog = document.getElementById('chatLog');
+  const chatInput = document.getElementById('chatInput');
+  const sendChatBtn = document.getElementById('sendChatBtn');
 
-    <div id="chatRoom">
-      <div id="roomHeader">
-        <span id="roomCode">Sala: XXXX</span>
-        <button id="configBtn">⚙️</button>
-      </div>
-      <div id="configMenu">
-        <button id="clearChatBtn">Limpar Chat</button>
-        <button id="toggleTipsBtn">Desativar Dicas</button>
-      </div>
-      <div id="participants"></div>
-      <div id="controlsRow">
-        <button id="micBtn">🔇</button>
-        <button id="leaveBtn" style="background:#C03">📞</button>
-        <button id="shareBtn">🖥️</button>
-      </div>
-      <div id="chatBox"></div>
-      <div id="emojiPanel">😀 😃 😄 😁 😆 😅 😂 😉 😊 😋 😎 😍</div>
-      <div id="msgArea">
-        <input id="msgInput" placeholder="Digite sua mensagem" autocomplete="off"/>
-        <button id="sendMsgBtn">Enviar</button>
-        <button id="emojiBtn">😊</button>
-      </div>
-    </div>
-  </section>
+  let peer, connList = {}, mediaStream, isAdmin=false;
+  let roomID=null, userCount=0;
 
-  <!-- SCRIPTS -->
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-  <script>
-  (async()=>{
-    // ————————— PLAYER ORIGINAL —————————
-    const overlay         = document.getElementById('dialogOverlay');
-    const openBtn         = document.getElementById('openDialogBtn');
-    const fileInput       = document.getElementById('fileInput');
-    const chooseFileBtn   = document.getElementById('chooseFileBtn');
-    const linkInput       = document.getElementById('linkInput');
-    const sendLinkBtn     = document.getElementById('sendLinkBtn');
-    const historyList     = document.getElementById('historyList');
-    const player          = document.getElementById('mediaPlayer');
-    const menuBtn         = document.getElementById('menuBtn');
-    const menuDropdown    = document.getElementById('menuDropdown');
-    const clearHistoryBtn = document.getElementById('clearHistoryBtn');
-    const deviceOverlay   = document.getElementById('deviceOverlay');
-    const audioDeviceSelect = document.getElementById('audioDeviceSelect');
-    const deviceOkBtn       = document.getElementById('deviceOkBtn');
+  function genCode(){return Math.random().toString(36).slice(2,6).toUpperCase();}
 
-    let history = JSON.parse(localStorage.getItem('mediaHistory') || '[]');
-    let pendingSrc = null;
-
-    function refreshHistory() {
-      historyList.innerHTML = '';
-      history.forEach(item => {
-        const div = document.createElement('div');
-        div.textContent = item;
-        div.onclick = () => preparePlay(item);
-        historyList.appendChild(div);
-      });
-    }
-
-    async function selectAudioDevice() {
-      if (typeof player.setSinkId !== 'function') return true;
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const outputs = devices.filter(d => d.kind === 'audiooutput');
-      if (outputs.length <= 1) return true;
-      audioDeviceSelect.innerHTML = '';
-      outputs.forEach(d => {
-        const opt = document.createElement('option');
-        opt.value = d.deviceId; opt.text = d.label || 'Dispositivo';
-        audioDeviceSelect.appendChild(opt);
-      });
-      deviceOverlay.style.display = 'flex';
-      return new Promise(resolve => {
-        deviceOkBtn.onclick = () => {
-          player.setSinkId(audioDeviceSelect.value).catch(console.error);
-          deviceOverlay.style.display = 'none';
-          resolve(true);
-        };
-      });
-    }
-
-    async function preparePlay(src) {
-      pendingSrc = src;
-      overlay.style.display = 'none';
-      if (await selectAudioDevice()) playMedia(pendingSrc);
-    }
-
-    function playMedia(src) {
-      player.src = src;
-      player.play();
-      if (!history.includes(src)) {
-        history.unshift(src);
-        if (history.length > 10) history.pop();
-        localStorage.setItem('mediaHistory', JSON.stringify(history));
-        refreshHistory();
-      }
-    }
-
-    openBtn.onclick = () => overlay.style.display = 'flex';
-    chooseFileBtn.onclick = () => fileInput.click();
-
-    fileInput.onchange = e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const url = URL.createObjectURL(file);
-      preparePlay(url);
-    };
-
-    sendLinkBtn.onclick = () => {
-      const url = linkInput.value.trim();
-      if (url) preparePlay(url);
-    };
-
-    linkInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendLinkBtn.click(); });
-    menuBtn.onclick = () => menuDropdown.style.display = menuDropdown.style.display === 'block' ? 'none' : 'block';
-    clearHistoryBtn.onclick = () => { history = []; localStorage.removeItem('mediaHistory'); refreshHistory(); menuDropdown.style.display = 'none'; };
-    refreshHistory();
-
-    // ————————— CHAT DE VOZ —————————
-    const initialUI    = document.getElementById('initialUI');
-    const roomsList    = document.getElementById('roomsList');
-    const roomInput    = document.getElementById('roomInput');
-    const createBtn    = document.getElementById('createBtn');
-    const joinBtn      = document.getElementById('joinBtn');
-    const status       = document.getElementById('status');
-    const chatRoom     = document.getElementById('chatRoom');
-    const roomCode     = document.getElementById('roomCode');
-    const partsDiv     = document.getElementById('participants');
-    const micBtn       = document.getElementById('micBtn');
-    const leaveBtn     = document.getElementById('leaveBtn');
-    const shareBtn     = document.getElementById('shareBtn');
-    const chatBox      = document.getElementById('chatBox');
-    const msgInput     = document.getElementById('msgInput');
-    const sendMsgBtn   = document.getElementById('sendMsgBtn');
-    const emojiBtn2    = document.getElementById('emojiBtn');
-    const emojiPanel2  = document.getElementById('emojiPanel');
-    const configBtn    = document.getElementById('configBtn');
-    const configMenu   = document.getElementById('configMenu');
-    const clearChatBtn2= document.getElementById('clearChatBtn');
-    const toggleTipsBtn2 = document.getElementById('toggleTipsBtn');
-
-    let peer2, conn2, call2, localStream2;
-    let roomId2, isAdmin2=false;
-    const users2 = {};
-    let tips2=true;
-
-    function renderRooms2(){
-      roomsList.innerHTML='';
-      JSON.parse(localStorage.getItem('rooms')||'[]').forEach(r=>{
-        const d=document.createElement('div');
-        d.className='roomItem'; d.textContent=r;
-        d.onclick=()=>{roomInput.value=r;joinBtn.click();};
-        roomsList.append(d);
-      });
-    }
-    function saveRooms2(id){
-      let a=JSON.parse(localStorage.getItem('rooms')||'[]');
-      if(!a.includes(id)) a.push(id);
-      localStorage.setItem('rooms',JSON.stringify(a));
-      renderRooms2();
-    }
-    function removeRoom2(id){
-      let a=JSON.parse(localStorage.getItem('rooms')||'[]').filter(x=>x!==id);
-      localStorage.setItem('rooms',JSON.stringify(a));
-      renderRooms2();
-    }
-    renderRooms2();
-
-    function addUser2(id){
-      if(users2[id]) return;
-      users2[id]={nick:`Usuário ${Object.keys(users2).length+1}`,photo:null};
-      updateUser2(id);
-    }
-    function updateUser2(id){
-      let div=document.getElementById('p-'+id);
-      if(!div){
-        div=document.createElement('div'); div.id='p-'+id; div.className='participant';
-        partsDiv.append(div);
-      }
-      div.innerHTML='';
-      const img=document.createElement('img'); img.src=users2[id].photo||'https://via.placeholder.com/32';
-      const span=document.createElement('span'); span.className='name'; span.textContent=users2[id].nick;
-      div.append(img,span);
-      if(isAdmin2){
-        const btn=document.createElement('button'); btn.textContent='⋮'; btn.style.marginLeft='5px';
-        btn.onclick=e=>{e.stopPropagation(); showPartMenu2(id,btn);};
-        div.append(btn);
-      }
-    }
-    function showPartMenu2(id,btn){
-      document.querySelectorAll('.partMenu').forEach(m=>m.remove());
-      const menu=document.createElement('div'); menu.className='partMenu';
-      menu.innerHTML=`
-        <button id="mute2-${id}">Mutar</button>
-        <button id="silence2-${id}">Silenciar</button>
-        <button id="expel2-${id}" style="color:#C03">Expulsar</button>
-        <button id="ban2-${id}" style="color:#C03">Banir</button>`;
-      btn.parentElement.append(menu);
-      menu.querySelector(`#mute2-${id}`).onclick=()=>{
-        conn2.send({type:'cmd-mute',target:id}); menu.remove();};
-      menu.querySelector(`#silence2-${id}`).onclick=()=>{
-        conn2.send({type:'cmd-silence',target:id});menu.remove();};
-      menu.querySelector(`#expel2-${id}`).onclick=()=>{
-        conn2.send({type:'cmd-expel',target:id});menu.remove();};
-      menu.querySelector(`#ban2-${id}`).onclick=()=>{
-        conn2.send({type:'cmd-ban',target:id});menu.remove();};
-    }
-    function monitorSpeech2(id,stream){
-      const ac=new AudioContext(), src=ac.createMediaStreamSource(stream);
-      const an=ac.createAnalyser(); an.fftSize=512; src.connect(an);
-      const data=new Uint8Array(an.frequencyBinCount);
-      (function chk(){
-        an.getByteFrequencyData(data);
-        const vol=data.reduce((a,b)=>a+b,0)/data.length;
-        const el=document.getElementById('p-'+id);
-        if(el) vol>10?el.classList.add('speaking'):el.classList.remove('speaking');
-        requestAnimationFrame(chk);
-      })();
-    }
-    function appendMsg2(user,txt){
-      const m=document.createElement('div');m.className='message';
-      m.innerHTML=`<span class="user">${user}:</span>${txt}`;
-      chatBox.append(m);chatBox.scrollTop=chatBox.scrollHeight;
-    }
-
-    createBtn.onclick=async()=>{
-      roomId2=genCode();isAdmin2=true;
-      roomInput.value=roomId2;saveRooms2(roomId2);
-      peer2=new Peer(roomId2);
-      peer2.on('open',async id=>{
-        roomCode.textContent=`Sala: ${id} (ADM)`;
-        status.textContent='Você é ADM';
-        showChat();
-        localStream2=await navigator.mediaDevices.getUserMedia({
-          audio:{noiseSuppression:true,echoCancellation:true,autoGainControl:true}});
-        addUser2(id);
-        peer2.on('connection',c=>{
-          c.on('data',d=>{
-            if(d.type==='join'){
-              if(confirm(`Permitir ${d.id}`)) c.send({type:'join-accept'}); else c.send({type:'join-deny'});
-            } else if(d.type==='chat') appendMsg2(users2[d.from]?.nick||d.from,d.msg);
-          });
-        });
-        peer2.on('call',c=>{
-          call2=c;c.answer(localStream2);
-          c.on('stream',s=>{
-            if(s.getVideoTracks().length){
-              let v=document.getElementById('screen2-'+c.peer);
-              if(!v){
-                v=document.createElement('video');v.id='screen2-'+c.peer;
-                v.style.width='120px';v.style.height='90px';v.style.borderRadius='4px';
-                partsDiv.append(v);
-              }
-              v.srcObject=s;v.autoplay=true;
-            } else {
-              const a=new Audio();a.srcObject=s;a.autoplay=true;a.play().catch(console.error);
-              addUser2(c.peer);monitorSpeech2(c.peer,s);
-            }
-          });
-        });
-      });
-    };
-
-    joinBtn.onclick=async()=>{
-      roomId2=roomInput.value.trim();if(roomId2.length!==4)return alert('Código inválido');
-      peer2=new Peer();
-      peer2.on('open',async id=>{
-        roomCode.textContent=`Sala: ${roomId2}`;
-        status.textContent='Aguardando ADM';
-        showChat();
-        localStream2=await navigator.mediaDevices.getUserMedia({
-          audio:{noiseSuppression:true,echoCancellation:true,autoGainControl:true}});
-        conn2=peer2.connect(roomId2);
-        conn2.on('open',()=>conn2.send({type:'join',id}));
-        conn2.on('data',d=>{
-          if(d.type==='join-accept'){
-            status.textContent='Conectado!';
-            call2=peer2.call(roomId2,localStream2);
-            call2.on('stream',s=>{
-              if(s.getVideoTracks().length){
-                let v=document.getElementById('screen2-'+call2.peer);
-                if(!v){
-                  v=document.createElement('video');v.id='screen2-'+call2.peer;
-                  v.style.width='120px';v.style.height='90px';v.style.borderRadius='4px';
-                  partsDiv.append(v);
-                }
-                v.srcObject=s;v.autoplay=true;
-              } else {
-                const a=new Audio();a.srcObject=s;a.autoplay=true;a.play().catch(console.error);
-                addUser2(call2.peer);monitorSpeech2(call2.peer,s);
-              }
-            });
-            addUser2(id);
-          }
-          if(d.type==='join-deny'){alert('Negado');location.reload();}
-          if(d.type==='chat') appendMsg2(users2[d.from]?.nick||d.from,d.msg);
-        });
-      });
-    };
-
-    micBtn.onclick=()=>{
-      const t=localStream2.getAudioTracks()[0];
-      t.enabled=!t.enabled;
-      micBtn.textContent=t.enabled?'🔇':'🎤';
-    };
-    leaveBtn.onclick=()=>{
-      removeRoom2(roomId2);
-      if(call2) call2.close();
-      if(conn2) conn2.close();
-      if(peer2) peer2.destroy();
-      showInitial();status.textContent='Nenhuma conexão ativa.';
-    };
-    shareBtn.onclick=async()=>{
-      if(peer2&&navigator.mediaDevices.getDisplayMedia){
-        const s=await navigator.mediaDevices.getDisplayMedia({video:true});
-        peer2.call(roomId2,s);
-        alert('Compartilhando tela!');
-      }
-    };
-    configBtn.onclick=()=>configMenu.style.display=configMenu.style.display==='block'?'none':'block';
-    clearChatBtn2.onclick=()=>chatBox.innerHTML='';
-    toggleTipsBtn2.onclick=()=>{tips2=!tips2;toggleTipsBtn2.textContent=tips2?'Desativar Dicas':'Ativar Dicas';};
-
-    sendMsgBtn.onclick=()=>{
-      const t=msgInput.value.trim();if(!t)return;
-      conn2.send({type:'chat',from:peer2.id,user:users2[peer2.id]?.nick||'Eu',msg:t});
-      appendMsg2(users2[peer2.id]?.nick||'Eu',t);
-      msgInput.value='';
-    };
-    msgInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendMsgBtn.click();}});
-    emojiBtn2.onclick=()=>emojiPanel2.style.display=emojiPanel2.style.display==='block'?'none':'block';
-    emojiPanel2.addEventListener('click',e=>{if(e.target.textContent) msgInput.value+=e.target.textContent;});
-
-    const dicas=['ADM pode limpar chat!','Desative dicas nas configs!','Não spame!'],di=0;
-    msgInput.addEventListener('focus',()=>{
-      msgInput.placeholder=tips2?dicas[di]:'Digite sua mensagem';
+  function addMember(id, name, img){
+    if(membersList.querySelector(`[data-id="${id}"]`)) return;
+    const div=document.createElement('div');
+    div.className='member'+(isAdmin?' admin':'');
+    div.dataset.id=id;
+    div.innerHTML=\`
+      <div class="avatar"></div>
+      <span>\${name}</span>
+      <div class="actions">
+        <button data-action="mute">🔇</button>
+        <button data-action="kick">🚫</button>
+      </div>\`;
+    membersList.append(div);
+    div.querySelectorAll('.actions button').forEach(btn=>{
+      btn.onclick=()=>{
+        connList[id].conn.send({type:'adminAction',action:btn.dataset.action,target:id});
+      };
     });
+  }
 
-  })();
-  </script>
-</body>
-</html>
+  function appendChat(msg){ 
+    const d=document.createElement('div');
+    d.textContent=msg;
+    chatLog.append(d);
+    chatLog.scrollTop=chatLog.scrollHeight;
+  }
+
+  async function startMedia(){
+    mediaStream = await navigator.mediaDevices.getUserMedia({audio:{noiseSuppression:true}});
+  }
+
+  function enterCall(){
+    roomSetup.style.display='none';
+    mainUI.style.display='flex';
+    membersArea.classList.add('active');
+    chatArea.classList.add('active');
+  }
+
+  function leaveCall(){
+    peer.destroy();
+    Object.values(connList).forEach(c=>c.conn.close());
+    connList={}; membersList.innerHTML='';
+    chatLog.innerHTML=''; mediaStream.getTracks().forEach(t=>t.stop());
+    location.reload();
+  }
+
+  createBtn.onclick=async()=>{
+    roomID=genCode();
+    isAdmin=true;
+    peer = new Peer(roomID);
+    peer.on('open',id=>{enterCall(); appendChat('Sala criada: '+id);});
+    peer.on('call', call=>{
+      call.answer(mediaStream);
+      call.on('stream', stream=>{
+        // play audio track
+      });
+    });
+    peer.on('connection', c=>{
+      c.on('open',()=>{
+        userCount++;
+        connList[c.peer]={conn:c};
+        addMember(c.peer,'Usuário '+userCount);
+        c.on('data',msg=>handleData(c.peer,msg));
+      });
+    });
+    await startMedia();
+  };
+
+  joinBtn.onclick=async()=>{
+    roomID=roomCodeInput.value.trim();
+    peer=new Peer();
+    peer.on('open',async id=>{
+      await startMedia();
+      const conn=peer.connect(roomID);
+      conn.on('open',()=>{
+        conn.send({type:'joinRequest',name:'Usuário'});
+      });
+      conn.on('data',msg=>handleData(roomID,msg));
+      connList[roomID]={conn,initiator:true};
+    });
+  };
+
+  function handleData(peerId,msg){
+    if(msg.type==='joinRequest' && isAdmin){
+      const ok = confirm(\`\${msg.name} quer entrar. Aceitar?\`);
+      connList[peerId].conn.send({type:'joinResponse',accepted:ok,assignedID:peerId});
+      if(ok){
+        addMember(peerId,msg.name);
+        const call=peer.call(peerId, mediaStream);
+        connList[peerId].call=call;
+        call.on('stream', stream=>{});
+      }
+    }
+    if(msg.type==='joinResponse'){
+      if(msg.accepted){enterCall(); appendChat('Você entrou na sala!');}
+      else alert('Entrada negada pelo administrador.');
+    }
+    if(msg.type==='chat'){
+      appendChat(msg.sender+': '+msg.text);
+    }
+    if(msg.type==='adminAction' && !isAdmin){
+      if(msg.action==='kick' || msg.action==='ban'){
+        alert('Você foi '+msg.action);
+        leaveCall();
+      }
+    }
+  }
+
+  chatInput.addEventListener('keyup',e=>{
+    if(e.key==='Enter' && chatInput.value.trim()){
+      const text=chatInput.value.trim();
+      Object.values(connList).forEach(c=>c.conn.send({type:'chat',sender:peer.id,text}));
+      appendChat('Você: '+text);
+      chatInput.value='';
+    }
+  });
+
+})();
+</script>
+</body></html>
