@@ -7,34 +7,40 @@
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,sans-serif;background:#111;color:#EEE;display:flex;flex-direction:column;align-items:center;padding:1rem;height:100vh}
-    button, input{border:none;border-radius:5px;font-size:1rem;padding:.6rem 1rem}
+    button,input{border:none;border-radius:5px;font-size:1rem;padding:.6rem 1rem}
     button{background:#FF4500;color:#FFF;cursor:pointer;margin-right:.5rem}
     input{background:#222;color:#EEE;width:200px;margin-bottom:.5rem}
     #status{margin-top:.5rem;color:#AAA}
+
     /* Tela inicial */
     #initialUI{display:flex;flex-direction:column;align-items:center}
-    #activeRooms{margin-top:1rem;}
-    .roomItem{background:#222;padding:.4rem .8rem;border-radius:4px;margin:.2rem 0;cursor:pointer;}
+    #activeRooms{margin-top:1rem}
+    .roomItem{background:#222;padding:.4rem .8rem;border-radius:4px;margin:.2rem 0;cursor:pointer;color:#EEE}
+
     /* Sala */
     #chatRoom{display:none;flex:1;width:100%;max-width:800px;display:flex;flex-direction:column}
     #roomHeader{display:flex;justify-content:space-between;align-items:center;padding:.5rem;background:#222;border-radius:4px 4px 0 0}
     #roomHeader span{font-weight:600}
     #participants{display:flex;flex-wrap:wrap;gap:.5rem;padding:.5rem;background:#1E1E1E}
     .participant{background:#333;padding:.4rem .8rem;border-radius:4px;display:flex;align-items:center;gap:.5rem;position:relative}
-    .participant.speaking{box-shadow:0 0 0 2px #4EA8DE}
+    .participant.speaking{box-shadow:0 0 0 2px #4EA8DE!important}
     .participant img{width:32px;height:32px;border-radius:50%;object-fit:cover}
     .participant .name{color:#FFF}
+    .partMenu{position:absolute;background:#333;padding:.4rem;border-radius:4px;display:flex;flex-direction:column;gap:.3rem;top:100%;right:0;z-index:10}
+    .partMenu button{background:none;color:#EEE;border:none;text-align:left;cursor:pointer}
+
     #controls{display:flex;gap:.5rem;padding:.5rem;background:#222}
     #chatBox{flex:1;overflow-y:auto;background:#1A1A1A;padding:.5rem}
     .message{margin:.5rem 0;word-break:break-word}
     .message .user{font-weight:600;margin-right:.3rem}
+
     #msgArea{display:flex;gap:.5rem;padding:.5rem;background:#222;border-radius:0 0 4px 4px}
     #msgInput{flex:1;padding:.6rem;border-radius:4px;background:#333;color:#EEE}
     #sendBtn{display:none}
     #emojiBtn{padding:.4rem;background:#444}
-    #emojiPanel{display:none;position:absolute;bottom:60px;right:20px;background:#333;padding:.5rem;border-radius:5px}
+    #emojiPanel{display:none;position:absolute;bottom:60px;right:20px;background:#333;padding:.5rem;border-radius:5px;z-index:10}
     #emojiPanel span{cursor:pointer;padding:.2rem;font-size:1.2rem}
-    /* Configurações */
+
     #configBtn{background:none;color:#FF4500;font-size:1.2rem}
     #configMenu{display:none;position:absolute;top:10px;right:10px;background:#222;padding:.5rem;border-radius:5px;z-index:10}
     #configMenu button{display:block;background:none;color:#EEE;padding:.4rem 0;text-align:left;width:100%}
@@ -45,7 +51,7 @@
   <!-- TELA INICIAL -->
   <div id="initialUI">
     <h1>🔊 Chat de Voz Web</h1>
-    <input id="roomInput" placeholder="Código da Sala (4)”" maxlength="4" />
+    <input id="roomInput" placeholder="Código da Sala (4)" maxlength="4" />
     <div>
       <button id="createBtn">Criar Sala</button>
       <button id="joinBtn">Entrar na Sala</button>
@@ -69,9 +75,9 @@
     </div>
     <div id="participants"></div>
     <div id="controls">
-      <button id="micBtn" class="small">🔇</button>
-      <button id="leaveBtn" class="small" style="background:#C03">📞</button>
-      <button id="shareBtn" class="small">🖥️</button>
+      <button id="micBtn">🔇</button>
+      <button id="leaveBtn" style="background:#C03">📞</button>
+      <button id="shareBtn">🖥️</button>
     </div>
     <div id="chatBox"></div>
     <div id="emojiPanel">😀 😃 😄 😁 😆 😅 😂 😉 😊 😋 😎 😍</div>
@@ -87,49 +93,65 @@
 (async()=>{
   /* ELEMENTOS */
   const initialUI = document.getElementById('initialUI');
-  const roomsList = document.getElementById('roomsList');
-  const roomInput = document.getElementById('roomInput');
-  const createBtn = document.getElementById('createBtn');
-  const joinBtn = document.getElementById('joinBtn');
-  const status = document.getElementById('status');
+  const roomsList  = document.getElementById('roomsList');
+  const roomInput  = document.getElementById('roomInput');
+  const createBtn  = document.getElementById('createBtn');
+  const joinBtn    = document.getElementById('joinBtn');
+  const status     = document.getElementById('status');
 
-  const chatRoom = document.getElementById('chatRoom');
-  const roomCode = document.getElementById('roomCode');
-  const participantsDiv = document.getElementById('participants');
-  const micBtn = document.getElementById('micBtn');
-  const leaveBtn = document.getElementById('leaveBtn');
-  const shareBtn = document.getElementById('shareBtn');
-  const chatBox = document.getElementById('chatBox');
-  const msgInput = document.getElementById('msgInput');
-  const sendBtn = document.getElementById('sendBtn');
-  const emojiBtn = document.getElementById('emojiBtn');
-  const emojiPanel = document.getElementById('emojiPanel');
+  const chatRoom       = document.getElementById('chatRoom');
+  const roomCode       = document.getElementById('roomCode');
+  const participantsDiv= document.getElementById('participants');
+  const micBtn         = document.getElementById('micBtn');
+  const leaveBtn       = document.getElementById('leaveBtn');
+  const shareBtn       = document.getElementById('shareBtn');
+  const chatBox        = document.getElementById('chatBox');
+  const msgInput       = document.getElementById('msgInput');
+  const sendBtn        = document.getElementById('sendBtn');
+  const emojiBtn       = document.getElementById('emojiBtn');
+  const emojiPanel     = document.getElementById('emojiPanel');
 
-  const configBtn = document.getElementById('configBtn');
-  const configMenu = document.getElementById('configMenu');
-  const clearChatBtn = document.getElementById('clearChatBtn');
-  const toggleTipsBtn = document.getElementById('toggleTipsBtn');
+  const configBtn      = document.getElementById('configBtn');
+  const configMenu     = document.getElementById('configMenu');
+  const clearChatBtn   = document.getElementById('clearChatBtn');
+  const toggleTipsBtn  = document.getElementById('toggleTipsBtn');
 
   /* ESTADO */
   let peer, conn, call, localStream;
   let roomId, isAdmin=false;
-  let participants = {}, me = {nick:'Eu', photo:null};
+  let participants={}, me={nick:'Eu',photo:null};
   let tips=true;
 
-  /* UTILS */
-  const saveLocalRooms = id=>{
-    const arr = JSON.parse(localStorage.getItem('rooms')||'[]');
-    if(!arr.includes(id)) arr.push(id);
-    localStorage.setItem('rooms',JSON.stringify(arr));
-    renderLocalRooms();
-  };
-  const removeLocalRoom = id=>{
-    let arr = JSON.parse(localStorage.getItem('rooms')||'[]');
-    arr=arr.filter(x=>x!==id);
-    localStorage.setItem('rooms',JSON.stringify(arr));
-    renderLocalRooms();
-  };
-  const renderLocalRooms = ()=>{
+  /* HELPERS */
+  function genCode(){
+    const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    return Array.from({length:4},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
+  }
+  async function getAudio(){
+    return await navigator.mediaDevices.getUserMedia({
+      audio:{
+        noiseSuppression:true,
+        echoCancellation:true,
+        autoGainControl:true
+      }
+    });
+  }
+  function showInitial(){ initialUI.style.display='flex'; chatRoom.style.display='none'; }
+  function showChat(){
+    initialUI.style.display='none'; chatRoom.style.display='flex';
+  }
+  function saveRooms(id){
+    let a=JSON.parse(localStorage.getItem('rooms')||'[]');
+    if(!a.includes(id)) a.push(id);
+    localStorage.setItem('rooms',JSON.stringify(a));
+    renderRooms();
+  }
+  function removeRoom(id){
+    let a=JSON.parse(localStorage.getItem('rooms')||'[]');
+    localStorage.setItem('rooms',JSON.stringify(a.filter(x=>x!==id)));
+    renderRooms();
+  }
+  function renderRooms(){
     roomsList.innerHTML='';
     JSON.parse(localStorage.getItem('rooms')||'[]').forEach(r=>{
       const d=document.createElement('div');
@@ -137,51 +159,105 @@
       d.onclick=()=>{roomInput.value=r;joinBtn.click();};
       roomsList.append(d);
     });
-  };
-  renderLocalRooms();
-
-  function genCode(){
-    const c='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',L=4;
-    let s='';for(let i=0;i<L;i++)s+=c[Math.floor(Math.random()*c.length)];
-    return s;
   }
-  async function getAudio(){return await navigator.mediaDevices.getUserMedia({audio:true});}
-  function showInitial(){initialUI.style.display='flex';chatRoom.style.display='none';}
-  function showChat(){initialUI.style.display='none';chatRoom.style.display='flex';}
+  renderRooms();
 
+  /* PARTICIPANTES */
   function addParticipant(id){
     if(participants[id]) return;
-    const div=document.createElement('div');
-    div.className='participant'; div.id=`p-${id}`;
-    const img=document.createElement('img');img.src=participants[id]?.photo||'https://via.placeholder.com/32';
-    const span=document.createElement('span');span.className='name';span.textContent=participants[id]?.nick||id;
+    participants[id]={nick:`Usuário ${Object.keys(participants).length+1}`,photo:null};
+    updateParticipant(id);
+  }
+  function updateParticipant(id){
+    const o=participants[id];
+    let div=document.getElementById(`p-${id}`);
+    if(!div){
+      div=document.createElement('div');
+      div.className='participant'; div.id=`p-${id}`;
+      participantsDiv.append(div);
+    }
+    div.innerHTML='';
+    const img=document.createElement('img');
+    img.src=o.photo||'https://via.placeholder.com/32';
+    const span=document.createElement('span');
+    span.className='name'; span.textContent=o.nick;
     div.append(img,span);
-    participantsDiv.append(div);
+    if(isAdmin){
+      const cfg=document.createElement('button');
+      cfg.textContent='⋮'; cfg.style.marginLeft='5px';
+      cfg.onclick=e=>{
+        e.stopPropagation();
+        showPartMenu(id,cfg);
+      };
+      div.append(cfg);
+    }
   }
   function removeParticipant(id){
-    participantsDiv.querySelector(`#p-${id}`)?.remove();
+    document.getElementById(`p-${id}`)?.remove();
     delete participants[id];
   }
-  function appendMsg(user,text){
+
+  /* MOSTRA MENU POR PARTICIPANTE */
+  function showPartMenu(pid,btn){
+    document.querySelectorAll('.partMenu').forEach(m=>m.remove());
+    const menu=document.createElement('div');
+    menu.className='partMenu';
+    menu.innerHTML=`
+      <button id="mute-${pid}">Mutar</button>
+      <button id="silence-${pid}">Silenciar</button>
+      <button id="expel-${pid}" style="color:#C03">Expulsar</button>
+      <button id="ban-${pid}" style="color:#C03">Banir</button>
+    `;
+    btn.parentElement.append(menu);
+    menu.querySelector(`#mute-${pid}`).onclick=()=>{
+      conn.send({type:'cmd-mute',target:pid}); menu.remove(); };
+    menu.querySelector(`#silence-${pid}`).onclick=()=>{
+      conn.send({type:'cmd-silence',target:pid}); menu.remove(); };
+    menu.querySelector(`#expel-${pid}`).onclick=()=>{
+      conn.send({type:'cmd-expel',target:pid}); menu.remove(); };
+    menu.querySelector(`#ban-${pid}`).onclick=()=>{
+      conn.send({type:'cmd-ban',target:pid}); menu.remove(); };
+  }
+
+  /* DETECÇÃO DE VOZ */
+  function monitorSpeech(pid,stream){
+    const ac=new AudioContext();
+    const src=ac.createMediaStreamSource(stream);
+    const an=ac.createAnalyser(); an.fftSize=512; src.connect(an);
+    const data=new Uint8Array(an.frequencyBinCount);
+    (function check(){
+      an.getByteFrequencyData(data);
+      const vol=data.reduce((a,b)=>a+b,0)/data.length;
+      const el=document.getElementById(`p-${pid}`);
+      if(el){
+        if(vol>10) el.classList.add('speaking');
+        else       el.classList.remove('speaking');
+      }
+      requestAnimationFrame(check);
+    })();
+  }
+
+  /* MENSAGENS TEXTUAIS */
+  function appendMsg(user,txt){
     const m=document.createElement('div');m.className='message';
-    m.innerHTML=`<span class="user">${user}:</span>${text}`;
+    m.innerHTML=`<span class="user">${user}:</span>${txt}`;
     chatBox.append(m);chatBox.scrollTop=chatBox.scrollHeight;
   }
 
-  /* EVENTOS INICIAIS */
+  /* TELA INICIAL – CRIAR SALA */
   createBtn.onclick=async()=>{
-    roomId = genCode(); isAdmin=true;
-    roomInput.value=roomId; saveLocalRooms(roomId);
+    roomId=genCode(); isAdmin=true;
+    roomInput.value=roomId; saveRooms(roomId);
     peer=new Peer(roomId);
     peer.on('open',async id=>{
       roomCode.textContent=`Sala: ${id} (ADM)`;
-      status.textContent='Você é o ADM, aguardando participantes...';
+      status.textContent='Você é o ADM – aguardando...';
       showChat();
-      localStream = await getAudio();
+      localStream=await getAudio();
       peer.on('connection',c=>{
         c.on('data',d=>{
           if(d.type==='join'){
-            if(confirm(`Entrar ${d.id}?`)){
+            if(confirm(`Permitir ${d.id}?`)){
               c.send({type:'join-accept'});
             } else {
               c.send({type:'join-deny'});
@@ -192,35 +268,42 @@
         });
       });
       peer.on('call',c=>{
-        call=c;call.answer(localStream);
-        call.on('stream',s=>{new Audio().play().srcObject=s;});
+        call=c; c.answer(localStream);
+        c.on('stream',s=>{
+          new Audio().play().srcObject=s;
+          addParticipant(c.peer);
+          monitorSpeech(c.peer,s);
+        });
       });
+      addParticipant(id);
     });
   };
 
+  /* ENTRAR NA SALA */
   joinBtn.onclick=async()=>{
-    roomId = roomInput.value.trim();
-    if(roomId.length!==4)return alert('Código inválido');
+    roomId=roomInput.value.trim();
+    if(roomId.length!==4) return alert('Código inválido');
     peer=new Peer();
     peer.on('open',async id=>{
       roomCode.textContent=`Sala: ${roomId}`;
-      status.textContent='Solicitando entrada...';
+      status.textContent='Aguardando aprovação do ADM...';
       showChat();
-      saveLocalRooms(roomId);
-      localStream = await getAudio();
-      conn = peer.connect(roomId);
-      conn.on('open',()=>{
-        conn.send({type:'join',id});
-      });
+      localStream=await getAudio();
+      conn=peer.connect(roomId);
+      conn.on('open',()=>{ conn.send({type:'join',id}); });
       conn.on('data',d=>{
         if(d.type==='join-accept'){
-          status.textContent='Entrou na sala!';
-          call = peer.call(roomId, localStream);
-          call.on('stream',s=>{new Audio().play().srcObject=s;});
+          status.textContent='Conectado!';
+          call=peer.call(roomId,localStream);
+          call.on('stream',s=>{
+            new Audio().play().srcObject=s;
+            addParticipant(call.peer);
+            monitorSpeech(call.peer,s);
+          });
+          addParticipant(id);
         }
         if(d.type==='join-deny'){
-          alert('ADM rejeitou sua entrada.');
-          location.reload();
+          alert('ADM negou sua entrada.'); location.reload();
         }
         if(d.type==='chat'){
           appendMsg(d.user,d.msg);
@@ -231,13 +314,13 @@
 
   /* CONTROLES DA SALA */
   micBtn.onclick=()=>{
-    if(!localStream)return;
+    if(!localStream) return;
     const t=localStream.getAudioTracks()[0];
     t.enabled=!t.enabled;
-    micBtn.textContent = t.enabled?'🔇':'🎤';
+    micBtn.textContent = t.enabled ? '🔇' : '🎤';
   };
   leaveBtn.onclick=()=>{
-    removeLocalRoom(roomId);
+    removeRoom(roomId);
     if(call) call.close();
     if(conn) conn.close();
     if(peer) peer.destroy();
@@ -245,16 +328,17 @@
     status.textContent='Nenhuma conexão ativa.';
   };
   shareBtn.onclick=async()=>{
-    if(!peer) return;
-    const s = await navigator.mediaDevices.getDisplayMedia({video:true});
-    peer.call(roomId,s);
-    alert('Você está compartilhando a tela!');
+    if(peer && navigator.mediaDevices.getDisplayMedia){
+      const s=await navigator.mediaDevices.getDisplayMedia({video:true});
+      peer.call(roomId,s);
+      alert('Compartilhando tela!');
+    }
   };
-  configBtn.onclick=()=> configMenu.style.display = configMenu.style.display==='block'?'none':'block';
-  clearChatBtn.onclick=()=>{chatBox.innerHTML='';};
+  configBtn.onclick=()=>configMenu.style.display = configMenu.style.display==='block'?'none':'block';
+  clearChatBtn.onclick=()=>chatBox.innerHTML='';
   toggleTipsBtn.onclick=()=>{tips=!tips;toggleTipsBtn.textContent=tips?'Desativar Dicas':'Ativar Dicas';};
 
-  /* CHAT DE TEXTO */
+  /* CHAT TEXTUAL */
   sendBtn.onclick=()=>{
     const t=msgInput.value.trim(); if(!t) return;
     conn.send({type:'chat',user:me.nick,msg:t});
@@ -264,14 +348,17 @@
   msgInput.addEventListener('keydown',e=>{
     if(e.key==='Enter'){e.preventDefault();sendBtn.click();}
   });
-  emojiBtn.onclick=()=>emojiPanel.style.display=emojiPanel.style.display==='block'?'none':'block';
-  emojiPanel.onclick=e=>{if(e.target.textContent){msgInput.value+=e.target.textContent;}};
+
+  emojiBtn.onclick=()=>emojiPanel.style.display = emojiPanel.style.display==='block'?'none':'block';
+  emojiPanel.addEventListener('click',e=>{
+    if(e.target.textContent) msgInput.value += e.target.textContent;
+  });
 
   /* PLACEHOLDER DINÂMICO */
   const dicas = [
-    'Dica: ADM pode limpar o chat nas configurações!',
+    'Dica: ADM pode limpar o chat nas configs!',
     'Dica: Cansado? Desative dicas nas configs!',
-    'Dica: Não spame ou ADM bloqueará você!'
+    'Dica: Não spame ou ADM bloqueará!'
   ];
   let di=0;
   msgInput.addEventListener('focus',()=>{
@@ -280,8 +367,9 @@
   });
 
   /* AUTO-ENTER SE ?room= */
-  const p = new URLSearchParams(location.search).get('room');
-  if(p){ roomInput.value=p; joinBtn.click(); }
+  const r = new URLSearchParams(location.search).get('room');
+  if(r){ roomInput.value=r; joinBtn.click(); }
+
 })();
 </script>
 
