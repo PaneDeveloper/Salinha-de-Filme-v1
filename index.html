@@ -12,7 +12,7 @@
     max-width: 1200px;
     margin: 0 auto;
     box-sizing: border-box;
-    display: flex;
+    display: none;
     flex-direction: row;
     flex: 1;
   }
@@ -123,7 +123,7 @@
     <button id="enterRoom" class="btn">Entrar</button>
   </div>
 
-  <div id="mainUI" style="display:none;">
+  <div id="mainUI">
     <div id="playerArea">
       <video id="mediaPlayer" controls></video>
       <div id="controls">
@@ -172,6 +172,32 @@ function handleData(peerId, msg) {
   }
   // ... outros handlers aqui
 }
+
+const menuSetup = document.getElementById('menuSetup');
+const namePrompt = document.getElementById('namePrompt');
+const mainUI = document.getElementById('mainUI');
+const nicknameInput = document.getElementById('nickname');
+let roomAction = '';
+
+document.getElementById('createRoom').onclick = () => {
+  roomAction = 'create';
+  menuSetup.style.display = 'none';
+  namePrompt.style.display = 'flex';
+};
+
+document.getElementById('joinRoom').onclick = () => {
+  roomAction = 'join';
+  menuSetup.style.display = 'none';
+  namePrompt.style.display = 'flex';
+};
+
+document.getElementById('enterRoom').onclick = () => {
+  const nickname = nicknameInput.value.trim();
+  if (!nickname) return alert('Digite um nome!');
+  namePrompt.style.display = 'none';
+  mainUI.style.display = 'flex';
+  console.log('Nickname definido:', nickname, 'Ação:', roomAction);
+};
 </script>
 </body>
 </html>
