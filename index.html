@@ -7,7 +7,52 @@
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#121212;color:#EEE;font-family:Arial,sans-serif;display:flex;flex-direction:column;height:100vh;}
-  #mainUI{flex:1;display:flex;overflow:hidden;flex-direction:row;}
+  
+  #mainUI {
+    max-width: 1200px;
+    margin: 0 auto;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+  }
+
+  @media (min-width: 1600px) {
+    #mainUI {
+      max-width: 900px;
+      margin: 2rem auto;
+      border: 1px solid #444;
+      border-radius: 10px;
+      box-shadow: 0 0 20px #0008;
+    }
+  }
+
+  @media (max-width: 768px) {
+    #mainUI {
+      display: flex !important;
+      flex-direction: column !important;
+      width: 100% !important;
+      height: 100vh !important;
+      margin: 0 !important;
+      padding: 0.5rem !important;
+    }
+    #playerArea {
+      flex: none !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      height: auto !important;
+    }
+    #chatArea {
+      flex: none !important;
+      width: 100% !important;
+      height: 150px !important;
+      border-left: none !important;
+      border-top: 1px solid #333 !important;
+      margin-top: 0.5rem !important;
+      display: flex !important;
+    }
+  }
+
   #playerArea{flex:2;background:#222;display:flex;flex-direction:column;align-items:center;padding:1rem;position:relative;}
   video{width:100%;max-width:800px;border-radius:6px;background:#000;}
   #controls{margin:1rem;display:flex;gap:.5rem;flex-wrap:wrap;}
@@ -65,37 +110,21 @@
   .playlist-item:hover {
     background: #555;
   }
-  @media(max-width:768px){
-    #mainUI{flex-direction:column;}
-    #chatArea{
-      display: flex !important; /* força mostrar */
-      order: 2;
-      height: 150px;
-      margin-top: 0.5rem;
-      border-top: 1px solid #333;
-    }
-    #playerArea{
-      order: 1;
-    }
-  }
 </style>
 </head>
 <body>
 
-<!-- Setup inicial -->
 <div id="menuSetup">
   <input id="roomCode" placeholder="Código da sala (ex: MX09)"/>
   <button id="createRoom" class="btn">Criar Sala</button>
   <button id="joinRoom" class="btn">Entrar na Sala</button>
 </div>
 
-<!-- Prompt para nickname -->
 <div id="namePrompt" style="display:none;">
   <input id="nickname" placeholder="Seu nome de usuário"/>
   <button id="enterRoom" class="btn">Entrar</button>
 </div>
 
-<!-- Interface principal -->
 <div id="mainUI" style="display:none;">
   <div id="playerArea">
     <video id="mediaPlayer" controls></video>
@@ -104,18 +133,16 @@
       <button id="showPlaylistBtn" class="btn">📃 Playlist</button>
     </div>
 
-    <!-- Janela de seleção de mídia -->
     <div id="fileMenu">
       <button class="closeBtn" onclick="fileMenu.style.display='none'">✖</button>
       <button id="selectFileBtn">Escolher do dispositivo</button>
       <button id="insertLinkBtn">Inserir link</button>
     </div>
 
-    <!-- Janela da playlist -->
     <div id="playlistMenu">
       <button class="closeBtn" onclick="closePlaylist()">✖</button>
       <div class="playlist-controls">
-        <button id="toggleAutoPlay" class="btn">Rep. Automática</button>
+        <button id="toggleAutoPlay" class="btn">Rep. Automática: OFF</button>
         <button id="clearPlaylistBtn" class="btn" style="display:none;">Limpar Fila</button>
       </div>
       <div id="playlistContent">Sem arquivos ainda.</div>
@@ -155,8 +182,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatArea = document.getElementById('chatArea');
   const selectFileBtn = document.getElementById('selectFileBtn');
   const insertLinkBtn = document.getElementById('insertLinkBtn');
-
-  const membersList = document.createElement('div'); // optional if you want to track members visually
 
   let peer, connList = {}, isAdmin = false;
   let roomID = null, nickname = '', userCount = 0;
@@ -239,26 +264,47 @@ document.addEventListener('DOMContentLoaded', () => {
     if(!isAdmin) return false;
     if(!text.startsWith('/')) return false;
 
-    const kickMatch = text.match(/^\/kick\s+(\S+)\s+MSG:\s*(.+)$/i);
+    const kickMatch = text.match(/^\/kick\s+(\S+)\s+(.+)$/i);
     if(kickMatch){
       const userToKick = kickMatch[1];
       const kickMsg = kickMatch[2];
 
+      if(userToKick.toLowerCase() === nickname.toLowerCase()){
+        const nome = userToKick.trim();
+        const ultimoChar = nome.charAt(nome.length -1).toLowerCase();
+        const feminino = (ultimoChar === 'a');
+        if(feminino){
+          alert(`A Admin não pode ser expulsa da sala!`);
+        } else {
+          alert(`O Admin não pode ser expulso da sala!`);
+        }
+        return true;
+      }
+
       let targetPeerId = null;
       for(const [pid, c] of Object.entries(connList)){
-        if(c.nickname === userToKick){
+        if(c.nickname && c.nickname.toLowerCase() === userToKick.toLowerCase()){
           targetPeerId = pid;
           break;
         }
       }
       if(targetPeerId){
         connList[targetPeerId].conn.send({type:'adminAction', action:'kick', message: kickMsg});
-        appendChat(`Sistema: Usuário ${userToKick} foi kickado.`);
+        appendChat(`Sistema: Usuário ${userToKick} foi kickado. Mensagem: ${kickMsg}`);
         return true;
       } else {
         appendChat(`Sistema: Usuário ${userToKick} não encontrado.`);
         return true;
       }
+    }
+
+    if(/^\/exit(\s+all\s+close\s+tab)?$/i.test(text)){
+      Object.values(connList).forEach(c=>{
+        c.conn.send({type:'adminAction', action:'exit'});
+      });
+      appendChat('Sistema: O administrador encerrou a sala. Todos serão desconectados.');
+      leaveCall();
+      return true;
     }
 
     return false;
@@ -276,8 +322,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if(msg.type==='joinResponse'){
       if(msg.accepted){
         appendChat('Você entrou na sala!');
+      } else {
+        alert('Entrada negada pelo administrador.');
       }
-      else alert('Entrada negada pelo administrador.');
     }
     if(msg.type==='chat'){
       appendChat(`${msg.sender}: ${msg.text}`);
@@ -287,57 +334,57 @@ document.addEventListener('DOMContentLoaded', () => {
         alert(msg.message || 'Você foi kickado.');
         leaveCall();
       }
+      if(msg.action==='exit'){
+        alert('Sala encerrada pelo administrador. A aba será fechada.');
+        window.close();
+      }
     }
   }
 
-  chatInput.addEventListener('keyup', e=>{
-    if(e.key==='Enter' && chatInput.value.trim()){
+  chatInput.addEventListener('keyup', e => {
+    if(e.key === 'Enter' && chatInput.value.trim()){
       const text = chatInput.value.trim();
       if(!processCommand(text)){
-        Object.values(connList).forEach(c=>c.conn.send({type:'chat',sender:nickname,text}));
-        appendChat(`${nickname}: ${text}`);
+        Object.values(connList).forEach(c => c.conn.send({type:'chat', sender:nickname, text}));
+        appendChat(`Você: ${text}`);
       }
       chatInput.value = '';
     }
   });
 
-  // MEDIA / PLAYLIST FUNCTIONS
+  // Enviar com botão (opcional)
+  // document.getElementById('sendChatBtn').onclick = () => {
+  //   chatInput.dispatchEvent(new KeyboardEvent('keyup', {key:'Enter'}));
+  // };
+
+  // ======= Player e playlist =======
   chooseMediaBtn.onclick = () => {
     fileMenu.style.display = 'flex';
   };
-  document.querySelector('#fileMenu .closeBtn').onclick = () => {
-    fileMenu.style.display = 'none';
-  };
-
   selectFileBtn.onclick = () => {
     fileMenu.style.display = 'none';
-    // Criar input file dinamicamente
     const inputFile = document.createElement('input');
     inputFile.type = 'file';
-    inputFile.accept = 'audio/*,video/*';
-    inputFile.onchange = () => {
-      if(inputFile.files.length>0){
-        const fileURL = URL.createObjectURL(inputFile.files[0]);
-        addToPlaylist({url: fileURL, name: inputFile.files[0].name, sender: nickname});
-        playFromPlaylist(playlist.length - 1);
+    inputFile.accept = "video/*,audio/*";
+    inputFile.onchange = e => {
+      const file = e.target.files[0];
+      if(file){
+        const url = URL.createObjectURL(file);
+        playlist.push({name:file.name, url, sender: nickname});
+        updatePlaylistUI();
       }
     };
     inputFile.click();
   };
-
   insertLinkBtn.onclick = () => {
     fileMenu.style.display = 'none';
-    const link = prompt('Cole o link do arquivo ou vídeo (qualquer site):');
-    if(link){
-      addToPlaylist({url: link, name: link, sender: nickname});
-      playFromPlaylist(playlist.length - 1);
+    const url = prompt('Cole o link do arquivo (qualquer site que permita reprodução)');
+    if(url){
+      const name = url.split('/').pop().split('?')[0] || url;
+      playlist.push({name, url, sender: nickname});
+      updatePlaylistUI();
     }
   };
-
-  function addToPlaylist(item){
-    playlist.push(item);
-    updatePlaylistUI();
-  }
 
   function updatePlaylistUI(){
     if(playlist.length === 0){
@@ -355,12 +402,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function playFromPlaylist(index){
-    if(index<0 || index>=playlist.length) return;
-    mediaPlayer.src = playlist[index].url;
+    if(index < 0 || index >= playlist.length) return;
+    const item = playlist[index];
+    mediaPlayer.src = item.url;
     mediaPlayer.play();
   }
 
-  // BOTÕES DA PLAYLIST
   showPlaylistBtn.onclick = () => {
     const isMobile = window.innerWidth <= 768;
     if(isMobile){
@@ -371,33 +418,50 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  function closePlaylist(){
+    playlistMenu.style.display = 'none';
+    if(window.innerWidth <= 768) chatArea.style.display = 'flex';
+  }
+
   clearPlaylistBtn.onclick = () => {
+    if(!isAdmin) return;
     playlist.length = 0;
     updatePlaylistUI();
   };
 
   toggleAutoPlay.onclick = () => {
     autoPlay = !autoPlay;
-    toggleAutoPlay.textContent = autoPlay ? 'Rep. Automática: ON' : 'Rep. Automática: OFF';
+    toggleAutoPlay.textContent = `Rep. Automática: ${autoPlay ? 'ON' : 'OFF'}`;
   };
 
-  // Esconde playlist no mobile clicando fora
-  playlistMenu.addEventListener('click', (e) => {
-    if(e.target === playlistMenu && window.innerWidth <= 768){
-      playlistMenu.style.display = 'none';
-      chatArea.style.display = 'flex';
-    }
-  });
-
-  // Avança na playlist se autoPlay ON
   mediaPlayer.onended = () => {
-    if(autoPlay){
-      let currentIndex = playlist.findIndex(p => p.url === mediaPlayer.src);
-      if(currentIndex >= 0 && currentIndex < playlist.length - 1){
-        playFromPlaylist(currentIndex + 1);
-      }
+    if(autoPlay && playlist.length > 0){
+      const currentIndex = playlist.findIndex(item => item.url === mediaPlayer.src);
+      let nextIndex = currentIndex + 1;
+      if(nextIndex >= playlist.length) nextIndex = 0;
+      playFromPlaylist(nextIndex);
     }
   };
+
+  // ====== Auto ajuste da tela de código (menuSetup) =======
+  function ajustaTelaSetup(){
+    const width = window.innerWidth;
+    if(width <= 768){
+      menuSetup.style.width = '90%';
+      menuSetup.style.margin = 'auto';
+      menuSetup.style.fontSize = '1.1rem';
+    } else if(width > 1600){
+      menuSetup.style.width = '600px';
+      menuSetup.style.margin = '2rem auto';
+      menuSetup.style.fontSize = '1rem';
+    } else {
+      menuSetup.style.width = '400px';
+      menuSetup.style.margin = '5rem auto';
+      menuSetup.style.fontSize = '1rem';
+    }
+  }
+  window.addEventListener('resize', ajustaTelaSetup);
+  ajustaTelaSetup();
 
 });
 </script>
