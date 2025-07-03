@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Chat + Player</title>
 <style>
-  /* Seus estilos anteriores aqui (omitidos para brevidade) */
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#121212;color:#EEE;font-family:Arial,sans-serif;display:flex;flex-direction:column;height:100vh;}
   
@@ -30,7 +29,7 @@
 
   @media (max-width: 768px) {
     #mainUI {
-      display: none !important; /* começar escondido */
+      display: none !important; /* esconder inicialmente */
       flex-direction: column !important;
       width: 100% !important;
       height: 100vh !important;
@@ -154,7 +153,7 @@
     <div id="chatArea">
       <div id="chatLog"></div>
       <div id="chatInputArea">
-        <input id="chatInput" placeholder="Digite sua mensagem"/>
+        <input id="chatInput" placeholder="Digite sua mensagem" autocomplete="off"/>
         <button id="sendChatBtn" class="btn">Enviar</button>
       </div>
     </div>
@@ -205,10 +204,7 @@ function createPeer(id) {
     myId = id;
     isAdmin = (roomAction === 'create');
     appendChat(`Sistema: Sala criada com código ${id}`, true);
-    if (isAdmin) {
-      // Admin já entra direto na sala UI
-      enterRoomUI();
-    }
+    enterRoomUI();
   });
 
   peer.on('connection', conn => {
@@ -218,9 +214,7 @@ function createPeer(id) {
     conn.on('open', () => {
       console.log('Conexão aberta com', remoteId);
       if (isAdmin) {
-        // Admin responde pedidos de entrada
         conn.send({type:'joinResponse', accepted:true, assignedID: remoteId});
-        // Admin anuncia para todo mundo que entrou
         broadcast({type:'system', text:`Usuário ${remoteId} entrou na sala`});
         appendChat(`Sistema: Usuário ${remoteId} entrou na sala`, true);
       }
@@ -261,7 +255,6 @@ function joinRoom(id) {
 
 function handleData(peerId, msg) {
   if (msg.type === 'joinRequest' && isAdmin) {
-    // Admin decide aceitar automaticamente (pode alterar pra prompt)
     const accept = true;
     connList[peerId].conn.send({type:'joinResponse', accepted: accept, assignedID: peerId, name: msg.name});
     if (accept) {
@@ -286,14 +279,18 @@ function handleData(peerId, msg) {
   }
 }
 
-// Exibe a UI principal da sala
 function enterRoomUI() {
   menuSetup.style.display = 'none';
   namePrompt.style.display = 'none';
   mainUI.style.display = 'flex';
+
+  // Importante: liberar controles do player e chat
+  mediaPlayer.controls = true;
+  mediaPlayer.style.pointerEvents = 'auto';
+  chatInput.disabled = false;
+  chatInput.style.pointerEvents = 'auto';
 }
 
-// Reseta para tela inicial
 function resetUI() {
   mainUI.style.display = 'none';
   menuSetup.style.display = 'flex';
@@ -312,9 +309,10 @@ function resetUI() {
   nickname = '';
 }
 
-// Botões da tela inicial
+// Botões tela inicial
 const createRoomBtn = document.getElementById('createRoom');
 const joinRoomBtn = document.getElementById('joinRoom');
+const enterRoomBtn = document.getElementById('enterRoom');
 
 let roomAction = '';
 
@@ -332,7 +330,6 @@ joinRoomBtn.onclick = () => {
   nicknameInput.focus();
 };
 
-// Entrar na sala após digitar nickname
 enterRoomBtn.onclick = () => {
   const name = nicknameInput.value.trim();
   if (!name) {
@@ -341,8 +338,7 @@ enterRoomBtn.onclick = () => {
   }
   nickname = name;
   if (roomAction === 'create') {
-    // Criar sala
-    roomId = nickname + '-' + Math.floor(Math.random()*1000); // Exemplo ID (melhor usar código inputado)
+    roomId = roomCodeInput.value.trim() || nickname + '-' + Math.floor(Math.random() * 1000);
     createPeer(roomId);
   } else if (roomAction === 'join') {
     roomId = roomCodeInput.value.trim();
@@ -364,6 +360,7 @@ nicknameInput.addEventListener('keydown', e => {
 // Chat enviar mensagem ao apertar Enter
 chatInput.addEventListener('keydown', e => {
   if (e.key === 'Enter' && chatInput.value.trim()) {
+    e.preventDefault();
     sendChat();
   }
 });
@@ -371,17 +368,10 @@ chatInput.addEventListener('keydown', e => {
 function sendChat() {
   const text = chatInput.value.trim();
   if (!text) return;
-  // Enviar pra todos
   broadcast({type:'chat', sender: nickname, text});
   appendChat(`Você: ${text}`);
   chatInput.value = '';
 }
-
-// Inicialmente esconder mainUI no celular (CSS já faz isso, mas reforçar)
-if (window.innerWidth <= 768) {
-  mainUI.style.display = 'none';
-}
-
 </script>
 </body>
 </html>
