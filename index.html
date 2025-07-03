@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Chat + Player</title>
 <style>
-  /* Seu CSS original, resumido para foco */
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#121212;color:#EEE;font-family:Arial,sans-serif;display:flex;flex-direction:column;height:100vh;}
   #mainUI{flex:1;display:flex;overflow:hidden;flex-direction:row;}
@@ -68,16 +67,15 @@
   }
   @media(max-width:768px){
     #mainUI{flex-direction:column;}
-    #chatArea{display:none;}
-    #playlistMenu{
-      position: static;
-      transform: none;
-      margin-top: 1rem;
-      width: 100%;
+    #chatArea{
+      display: flex !important; /* força mostrar */
+      order: 2;
+      height: 150px;
+      margin-top: 0.5rem;
+      border-top: 1px solid #333;
     }
-    .closeBtn {
-      position: static;
-      align-self: flex-end;
+    #playerArea{
+      order: 1;
     }
   }
 </style>
@@ -158,6 +156,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const selectFileBtn = document.getElementById('selectFileBtn');
   const insertLinkBtn = document.getElementById('insertLinkBtn');
 
+  const membersList = document.createElement('div'); // optional if you want to track members visually
+
   let peer, connList = {}, isAdmin = false;
   let roomID = null, nickname = '', userCount = 0;
   const playlist = [];
@@ -170,6 +170,13 @@ document.addEventListener('DOMContentLoaded', () => {
     d.textContent=msg;
     chatLog.append(d);
     chatLog.scrollTop=chatLog.scrollHeight;
+  }
+
+  function announceJoin(name){
+    Object.values(connList).forEach(c=>{
+      c.conn.send({type:'chat',sender:'Sistema',text:`${name} entrou na sala.`});
+    });
+    appendChat(`Sistema: ${name} entrou na sala.`);
   }
 
   function enterCall(){
@@ -213,7 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
           conn.send({type:'joinRequest',name:nickname});
         });
         conn.on('data',msg=>handleData(roomID,msg));
-        connList[roomID]={conn,initiator:true};
+        connList[roomID]={conn,initiator:true, nickname};
       }
       if(isAdmin){
         peer.on('connection', c=>{
@@ -228,130 +235,171 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
+  function processCommand(text){
+    if(!isAdmin) return false;
+    if(!text.startsWith('/')) return false;
+
+    const kickMatch = text.match(/^\/kick\s+(\S+)\s+MSG:\s*(.+)$/i);
+    if(kickMatch){
+      const userToKick = kickMatch[1];
+      const kickMsg = kickMatch[2];
+
+      let targetPeerId = null;
+      for(const [pid, c] of Object.entries(connList)){
+        if(c.nickname === userToKick){
+          targetPeerId = pid;
+          break;
+        }
+      }
+      if(targetPeerId){
+        connList[targetPeerId].conn.send({type:'adminAction', action:'kick', message: kickMsg});
+        appendChat(`Sistema: Usuário ${userToKick} foi kickado.`);
+        return true;
+      } else {
+        appendChat(`Sistema: Usuário ${userToKick} não encontrado.`);
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   function handleData(peerId, msg){
     if(msg.type==='joinRequest' && isAdmin){
       const ok = confirm(`${msg.name} quer entrar na sala. Permitir?`);
       connList[peerId].conn.send({type:'joinResponse',accepted:ok});
+      if(ok){
+        connList[peerId].nickname = msg.name;
+        announceJoin(msg.name);
+      }
     }
     if(msg.type==='joinResponse'){
-      if(msg.accepted){enterCall(); appendChat('Você entrou na sala!');}
+      if(msg.accepted){
+        appendChat('Você entrou na sala!');
+      }
       else alert('Entrada negada pelo administrador.');
     }
     if(msg.type==='chat'){
       appendChat(`${msg.sender}: ${msg.text}`);
     }
+    if(msg.type==='adminAction' && !isAdmin){
+      if(msg.action==='kick'){
+        alert(msg.message || 'Você foi kickado.');
+        leaveCall();
+      }
+    }
   }
 
-  chatInput.addEventListener('keyup',e=>{
+  chatInput.addEventListener('keyup', e=>{
     if(e.key==='Enter' && chatInput.value.trim()){
       const text = chatInput.value.trim();
-      Object.values(connList).forEach(c=>c.conn.send({type:'chat',sender:nickname,text}));
-      appendChat(`${nickname}: ${text}`);
+      if(!processCommand(text)){
+        Object.values(connList).forEach(c=>c.conn.send({type:'chat',sender:nickname,text}));
+        appendChat(`${nickname}: ${text}`);
+      }
       chatInput.value = '';
     }
   });
 
-  chooseMediaBtn.onclick = ()=>{
+  // MEDIA / PLAYLIST FUNCTIONS
+  chooseMediaBtn.onclick = () => {
     fileMenu.style.display = 'flex';
+  };
+  document.querySelector('#fileMenu .closeBtn').onclick = () => {
+    fileMenu.style.display = 'none';
   };
 
   selectFileBtn.onclick = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'video/*,audio/*';
-    input.onchange = e => {
-      const file = e.target.files[0];
-      if(file){
-        const url = URL.createObjectURL(file);
-        mediaPlayer.src = url;
-        playlist.push({src: url, name: file.name, sender: nickname});
-        updatePlaylistUI();
-        fileMenu.style.display = 'none';
+    fileMenu.style.display = 'none';
+    // Criar input file dinamicamente
+    const inputFile = document.createElement('input');
+    inputFile.type = 'file';
+    inputFile.accept = 'audio/*,video/*';
+    inputFile.onchange = () => {
+      if(inputFile.files.length>0){
+        const fileURL = URL.createObjectURL(inputFile.files[0]);
+        addToPlaylist({url: fileURL, name: inputFile.files[0].name, sender: nickname});
+        playFromPlaylist(playlist.length - 1);
       }
     };
-    input.click();
+    inputFile.click();
   };
 
   insertLinkBtn.onclick = () => {
-    const link = prompt("Insira o link do vídeo/áudio:");
+    fileMenu.style.display = 'none';
+    const link = prompt('Cole o link do arquivo ou vídeo (qualquer site):');
     if(link){
-      mediaPlayer.src = link;
-      playlist.push({src: link, name: link, sender: nickname});
-      updatePlaylistUI();
-      fileMenu.style.display = 'none';
+      addToPlaylist({url: link, name: link, sender: nickname});
+      playFromPlaylist(playlist.length - 1);
     }
   };
+
+  function addToPlaylist(item){
+    playlist.push(item);
+    updatePlaylistUI();
+  }
 
   function updatePlaylistUI(){
     if(playlist.length === 0){
-      playlistContent.textContent = "Sem arquivos ainda.";
-    } else {
-      playlistContent.innerHTML = playlist.map((p,i) => `<div class='playlist-item' onclick='playFromPlaylist(${i})'><b>${p.sender}</b>: ${p.name}</div>`).join('');
+      playlistContent.textContent = 'Sem arquivos ainda.';
+      return;
     }
+    playlistContent.innerHTML = '';
+    playlist.forEach((item, i) => {
+      const div = document.createElement('div');
+      div.className = 'playlist-item';
+      div.textContent = `${item.sender}: ${item.name}`;
+      div.onclick = () => playFromPlaylist(i);
+      playlistContent.appendChild(div);
+    });
   }
 
-  window.playFromPlaylist = function(index){
-    const item = playlist[index];
-    if(item){
-      mediaPlayer.src = item.src;
-      if(autoPlay) mediaPlayer.play();
-    }
-  };
-
-  clearPlaylistBtn.onclick = ()=>{
-    playlist.length = 0;
-    updatePlaylistUI();
-  };
-
-  toggleAutoPlay.onclick = ()=>{
-    autoPlay = !autoPlay;
-    toggleAutoPlay.textContent = autoPlay ? 'Auto ON' : 'Rep. Automática';
-  };
-
-  function closePlaylist(){
-    playlistMenu.style.display = 'none';
-    chatArea.style.display = 'flex';
+  function playFromPlaylist(index){
+    if(index<0 || index>=playlist.length) return;
+    mediaPlayer.src = playlist[index].url;
+    mediaPlayer.play();
   }
-  window.closePlaylist = closePlaylist;
 
+  // BOTÕES DA PLAYLIST
   showPlaylistBtn.onclick = () => {
-    updatePlaylistUI();
     const isMobile = window.innerWidth <= 768;
     if(isMobile){
       chatArea.style.display = 'none';
       playlistMenu.style.display = 'flex';
     } else {
-      const newWin = window.open('', '_blank', 'width=400,height=600');
-      newWin.document.write(playlistWindowHTML());
-      newWin.document.close();
+      playlistMenu.style.display = playlistMenu.style.display === 'flex' ? 'none' : 'flex';
     }
   };
 
-  const playlistWindowHTML = () => {
-    const clearBtn = isAdmin ? `<button onclick="window.opener.clearPlaylist()" class="btn">Limpar Fila</button>` : '';
-    return `
-      <html><head><title>Playlist</title>
-      <style>
-        body{background:#121212;color:#EEE;font-family:Arial,sans-serif;padding:1rem;}
-        .playlist-controls{display:flex;justify-content:flex-end;gap:0.5rem;margin-bottom:1rem;}
-        .playlist-item{cursor:pointer;padding:0.3rem;border-radius:4px;}
-        .playlist-item:hover{background:#555;}
-        .btn{background:#ff4500;border:none;color:#FFF;padding:.5rem 1rem;border-radius:5px;cursor:pointer;}
-      </style>
-      </head><body>
-        <h2>Fila de Reprodução</h2>
-        <div class="playlist-controls">
-          ${clearBtn}
-          <button onclick="window.opener.toggleAutoPlay()" class="btn">Rep. Automática</button>
-        </div>
-        <div id="playlistContent">
-          ${playlist.map((p,i) => `<div class='playlist-item' onclick='window.opener.playFromPlaylist(${i})'><b>${p.sender}</b>: ${p.name}</div>`).join('')}
-        </div>
-      </body></html>
-    `;
+  clearPlaylistBtn.onclick = () => {
+    playlist.length = 0;
+    updatePlaylistUI();
   };
+
+  toggleAutoPlay.onclick = () => {
+    autoPlay = !autoPlay;
+    toggleAutoPlay.textContent = autoPlay ? 'Rep. Automática: ON' : 'Rep. Automática: OFF';
+  };
+
+  // Esconde playlist no mobile clicando fora
+  playlistMenu.addEventListener('click', (e) => {
+    if(e.target === playlistMenu && window.innerWidth <= 768){
+      playlistMenu.style.display = 'none';
+      chatArea.style.display = 'flex';
+    }
+  });
+
+  // Avança na playlist se autoPlay ON
+  mediaPlayer.onended = () => {
+    if(autoPlay){
+      let currentIndex = playlist.findIndex(p => p.url === mediaPlayer.src);
+      if(currentIndex >= 0 && currentIndex < playlist.length - 1){
+        playFromPlaylist(currentIndex + 1);
+      }
+    }
+  };
+
 });
 </script>
-
 </body>
 </html>
