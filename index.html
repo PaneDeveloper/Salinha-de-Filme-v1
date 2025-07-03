@@ -63,52 +63,47 @@
   #chatInput{flex:1;padding:.5rem;border-radius:4px;border:none;background:#222;color:#EEE;}
   #menuSetup,#namePrompt{padding:1rem;display:flex;flex-direction:column;gap:.5rem;align-items:center;}
   #sendChatBtn{display:none;}
-  #fileMenu, #playlistMenu {
-    position: absolute;
-    top: 10%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #333;
-    padding: 1rem;
-    border-radius: 8px;
+  
+  /* Modal do menu de seleção */
+  #fileMenuModal {
+    position: fixed;
+    top:0; left:0; right:0; bottom:0;
+    background: rgba(0,0,0,0.75);
     display: none;
-    flex-direction: column;
-    gap: 0.5rem;
-    z-index: 10;
-    min-width: 300px;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
   }
-  #fileMenu button, #playlistMenu button {
+  #fileMenuContent {
+    background: #333;
+    padding: 1.5rem;
+    border-radius: 8px;
+    min-width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    position: relative;
+  }
+  #fileMenuContent button {
     background: #444;
     color: white;
-    padding: 0.5rem;
+    padding: 0.75rem;
     border: none;
     border-radius: 5px;
     cursor: pointer;
+    font-size: 1rem;
   }
-  .closeBtn {
+  #fileMenuCloseBtn {
     position: absolute;
-    top: 0.2rem;
+    top: 0.3rem;
     right: 0.5rem;
     background: transparent;
     border: none;
     color: #f00;
-    font-size: 1.2rem;
+    font-size: 1.5rem;
     cursor: pointer;
   }
-  .playlist-controls {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-  }
-  .playlist-item {
-    cursor: pointer;
-    padding: 0.3rem;
-    border-radius: 4px;
-  }
-  .playlist-item:hover {
-    background: #555;
-  }
+
 </style>
 </head>
 <body>
@@ -127,23 +122,8 @@
     <div id="playerArea">
       <video id="mediaPlayer" controls></video>
       <div id="controls">
-        <button id="chooseMediaBtn" class="btn">Escolher Arquivo/Link</button>
+        <button id="chooseMediaBtn" class="btn">Escolher Arquivo/Link/Tela</button>
         <button id="showPlaylistBtn" class="btn">📃 Playlist</button>
-      </div>
-
-      <div id="fileMenu">
-        <button class="closeBtn" onclick="fileMenu.style.display='none'">✖</button>
-        <button id="selectFileBtn">Escolher do dispositivo</button>
-        <button id="insertLinkBtn">Inserir link</button>
-      </div>
-
-      <div id="playlistMenu">
-        <button class="closeBtn" onclick="closePlaylist()">✖</button>
-        <div class="playlist-controls">
-          <button id="toggleAutoPlay" class="btn">Rep. Automática: OFF</button>
-          <button id="clearPlaylistBtn" class="btn" style="display:none;">Limpar Fila</button>
-        </div>
-        <div id="playlistContent">Sem arquivos ainda.</div>
       </div>
     </div>
     <div id="chatArea">
@@ -152,6 +132,16 @@
         <input id="chatInput" placeholder="Digite sua mensagem"/>
         <button id="sendChatBtn" class="btn">Enviar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal para escolha de mídia -->
+  <div id="fileMenuModal">
+    <div id="fileMenuContent">
+      <button id="fileMenuCloseBtn">✖</button>
+      <button id="selectFileBtn">Escolher do dispositivo</button>
+      <button id="insertLinkBtn">Inserir link</button>
+      <button id="shareScreenBtn">Transmitir Tela</button>
     </div>
   </div>
 
@@ -172,14 +162,13 @@
   const chatInput = document.getElementById('chatInput');
   const sendChatBtn = document.getElementById('sendChatBtn');
   const chooseMediaBtn = document.getElementById('chooseMediaBtn');
-  const fileMenu = document.getElementById('fileMenu');
+  const fileMenuModal = document.getElementById('fileMenuModal');
+  const fileMenuCloseBtn = document.getElementById('fileMenuCloseBtn');
   const selectFileBtn = document.getElementById('selectFileBtn');
   const insertLinkBtn = document.getElementById('insertLinkBtn');
+  const shareScreenBtn = document.getElementById('shareScreenBtn');
   const showPlaylistBtn = document.getElementById('showPlaylistBtn');
-  const playlistMenu = document.getElementById('playlistMenu');
-  const playlistContent = document.getElementById('playlistContent');
-  const toggleAutoPlayBtn = document.getElementById('toggleAutoPlay');
-  const clearPlaylistBtn = document.getElementById('clearPlaylistBtn');
+  const chatArea = document.getElementById('chatArea');
 
   // Variáveis
   let peer = null;
@@ -190,8 +179,9 @@
   let roomAction = ''; // 'create' or 'join'
   let playlist = [];
   let autoPlay = false;
+  let playlistWindow = null; // para abrir janela playlist no PC
 
-  // Função para gerar código alfanumérico 4 caracteres (ex: A91J)
+  // Gera código alfanumérico 4 caracteres (ex: A91J)
   function genCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = '';
@@ -201,206 +191,326 @@
     return code;
   }
 
-  // Atualiza a playlist na UI
+  // Atualiza UI da playlist
   function updatePlaylistUI() {
-    playlistContent.innerHTML = '';
-    if(playlist.length === 0) {
-      playlistContent.textContent = 'Sem arquivos ainda.';
-      return;
-    }
-    playlist.forEach((item, i) => {
-      const div = document.createElement('div');
-      div.className = 'playlist-item';
-      div.textContent = `${item.name} (adicionado por ${item.addedBy})`;
-      div.onclick = () => {
-        playMedia(item.url);
+    const html = playlist.length === 0 ? 
+      '<p>Sem arquivos ainda.</p>' :
+      playlist.map(item => `<div style="cursor:pointer;padding:4px;border-radius:4px;" onclick="window.playMedia('${item.url}')">${item.name} (adicionado por ${item.addedBy})</div>`).join('');
+    if(playlistWindow && !playlistWindow.closed) {
+      playlistWindow.document.body.innerHTML = `
+        <h3>Playlist</h3>
+        ${html}
+        <button onclick="window.close()">Fechar Playlist</button>
+      `;
+      playlistWindow.document.title = 'Playlist da Sala';
+      playlistWindow.document.body.style.background = '#121212';
+      playlistWindow.document.body.style.color = '#EEE';
+      playlistWindow.document.body.style.fontFamily = 'Arial,sans-serif';
+      playlistWindow.document.body.style.padding = '10px';
+      // Expor função para tocar mídia da playlist
+      playlistWindow.playMedia = url => {
+        playMedia(url);
       };
-      playlistContent.appendChild(div);
-    });
+    } else if(window.innerWidth < 768) {
+      // No celular substitui o chat pelo html da playlist
+      chatArea.style.display = chatArea.style.display === 'none' ? 'flex' : 'none';
+      if(chatArea.style.display === 'none') {
+        const chatLog = document.getElementById('chatLog');
+        chatLog.innerHTML = html;
+      } else {
+        renderChatLog();
+      }
+    }
   }
 
   // Função para tocar mídia no player e enviar para todos
   function playMedia(url) {
+    if(!url) return;
     mediaPlayer.src = url;
     mediaPlayer.play().catch(() => {});
-    // Avisar todos que o media mudou
     broadcast({type:'mediaChange', url});
   }
 
-  // Envia mensagem para todos os conectados
+  // Envia mensagem para todos conectados
   function broadcast(msg) {
     Object.values(connList).forEach(c => {
-      try {
-        c.conn.send(msg);
-      } catch {}
+      try { c.conn.send(msg); } catch(e){}
     });
   }
 
-  // Adiciona mensagem no chat
-  function appendChat(msg, isSystem=false) {
-    const div = document.createElement('div');
-    div.textContent = msg;
-    if(isSystem) {
-      div.style.fontStyle = 'italic';
-      div.style.color = '#AAA';
+  // Função para enviar mensagens no chat e processar comandos
+  function sendMessage(text) {
+    if(!text.trim()) return;
+    if(text.startsWith('/')) {
+      handleCommand(text);
+      chatInput.value = '';
+      return;
     }
-    chatLog.appendChild(div);
+    appendChat(`<b>${nickname}:</b> ${text}`);
+    broadcast({type:'chat', sender: nickname, text});
+    chatInput.value = '';
+  }
+
+  // Append no chat
+  function appendChat(html) {
+    chatLog.insertAdjacentHTML('beforeend', `<div>${html}</div>`);
     chatLog.scrollTop = chatLog.scrollHeight;
   }
 
-  // Recebe mensagens dos peers
-  function handleData(peerId, msg) {
-    if(!msg || !msg.type) return;
-    switch(msg.type) {
-      case 'joinRequest':
-        if(isAdmin) {
-          const accepted = confirm(`${msg.name} quer entrar na sala. Aceitar?`);
-          connList[peerId].conn.send({type:'joinResponse', accepted});
-          if(accepted) {
-            addMember(peerId, msg.name);
-            broadcastSystemMessage(`${msg.name} entrou na sala.`);
-            // Enviar playlist atual para o novo membro
-            connList[peerId].conn.send({type:'playlistUpdate', playlist});
-          } else {
-            connList[peerId].conn.close();
-            delete connList[peerId];
-          }
-        }
-        break;
-
-      case 'joinResponse':
-        if(msg.accepted) {
-          showMainUI();
-          appendChat('Você entrou na sala!', true);
-          nickname = msg.name || nickname;
-          if(msg.playlist) {
-            playlist = msg.playlist;
-            updatePlaylistUI();
-          }
-          isAdmin = false;
-          clearPlaylistBtn.style.display = 'none';
-        } else {
-          alert('Entrada negada pelo administrador.');
-          location.reload();
-        }
-        break;
-
+  // Processa dados recebidos
+  function handleData(peerId, data) {
+    switch(data.type) {
       case 'chat':
-        appendChat(`${msg.sender}: ${msg.text}`);
+        appendChat(`<b>${data.sender}:</b> ${data.text}`);
         break;
-
-      case 'adminAction':
-        if(!isAdmin) {
-          if(msg.action === 'kick' || msg.action === 'ban') {
-            alert('Você foi expulso da sala!');
-            leaveRoom();
-          }
-        }
-        break;
-
       case 'mediaChange':
-        if(msg.url && msg.url !== mediaPlayer.src) {
-          mediaPlayer.src = msg.url;
-          mediaPlayer.play().catch(() => {});
-        }
+        mediaPlayer.src = data.url;
+        mediaPlayer.play().catch(() => {});
         break;
-
       case 'playlistUpdate':
-        if(Array.isArray(msg.playlist)) {
-          playlist = msg.playlist;
-          updatePlaylistUI();
-        }
+        playlist = data.playlist;
+        updatePlaylistUI();
         break;
-
       case 'systemMessage':
-        appendChat(msg.text, true);
+        appendChat(`<i style="color:#aaa;">${data.message}</i>`);
         break;
-
       case 'kickUser':
-        if(msg.target === nickname) {
-          alert(msg.message || 'Você foi expulso da sala!');
+        if(data.target === nickname) {
+          alert(data.message);
           leaveRoom();
         }
         break;
-
       case 'exitAll':
-        alert('O administrador fechou a sala.');
-        location.reload();
+        alert('O administrador encerrou a sala. Você será desconectado.');
+        leaveRoom();
         break;
-
       case 'leaveAll':
-        alert('O administrador encerrou a sala. Você foi desconectado.');
+        alert('O administrador encerrou a sala para todos. Você será desconectado.');
         leaveRoom();
         break;
     }
   }
 
-  // Envia mensagem do sistema para todos
-  function broadcastSystemMessage(text) {
-    appendChat(text, true);
-    broadcast({type:'systemMessage', text});
-  }
-
-  // Adiciona membro na lista (visível só para admin)
-  function addMember(id, name) {
-    connList[id].name = name;
-    if(isAdmin) {
-      clearPlaylistBtn.style.display = 'inline-block'; // mostra botão limpar fila só para admin
+  // Handle commands (kick, exit, leave)
+  function handleCommand(text) {
+    const parts = text.trim().split(' ');
+    const cmd = parts[0].toLowerCase();
+    if(cmd === '/kick' && isAdmin) {
+      if(parts.length < 2) {
+        alert('Use /kick NomeUsuario [Mensagem opcional]');
+        return;
+      }
+      const target = parts[1];
+      if(target.toLowerCase() === nickname.toLowerCase()) {
+        alert(`O ${genderSuffix(nickname)} Admin${genderSuffix(nickname, true)} não pode ser expulso da sala!`);
+        return;
+      }
+      const msg = parts.slice(2).join(' ') || 'Você foi expulso da sala!';
+      // Procura conexão pelo nome
+      const entry = Object.entries(connList).find(([id, c]) => c.name && c.name.toLowerCase() === target.toLowerCase());
+      if(entry) {
+        const [peerId, connObj] = entry;
+        try {
+          connObj.conn.send({type:'kickUser', target: connObj.name, message: msg});
+          broadcast({type:'systemMessage', message: `${connObj.name} foi expulso da sala pelo admin.`});
+          connObj.conn.close();
+          delete connList[peerId];
+        } catch(e) { alert('Erro ao expulsar usuário.'); }
+      } else {
+        alert('Usuário não encontrado.');
+      }
+    } else if(cmd === '/exit' && parts[1] === 'all' && isAdmin) {
+      broadcast({type:'exitAll'});
+      leaveRoom();
+    } else if(cmd === '/leaveall' && isAdmin) {
+      broadcast({type:'leaveAll'});
+      leaveRoom();
+    } else if(cmd === '/leave') {
+      leaveRoom();
+    } else {
+      alert('Comando desconhecido ou você não tem permissão.');
     }
   }
 
-  // Sair da sala
-  function leaveRoom() {
-    if(peer) {
-      peer.destroy();
-      peer = null;
-    }
-    connList = {};
-    playlist = [];
-    mediaPlayer.src = '';
-    chatLog.innerHTML = '';
-    mainUI.style.display = 'none';
-    menuSetup.style.display = 'flex';
-    namePrompt.style.display = 'none';
-    nicknameInput.value = '';
-    roomCodeInput.value = '';
-    nickname = '';
-    roomId = '';
-    isAdmin = false;
+  // Retorna sufixo de gênero baseado no nome (simplificado)
+  function genderSuffix(name, capitalized = false) {
+    const lastChar = name.slice(-1).toLowerCase();
+    let suffix = 'o';
+    if('aeiouáéíóúãõ'.includes(lastChar)) suffix = 'a';
+    return capitalized ? suffix.toUpperCase() : suffix;
   }
 
-  // Exibe mainUI e esconde setup e nome
-  function showMainUI() {
+  // Abre modal menu mídia
+  chooseMediaBtn.onclick = () => {
+    fileMenuModal.style.display = 'flex';
+  };
+
+  // Fecha modal mídia (não deixa fechar sem escolha)
+  fileMenuCloseBtn.onclick = () => {
+    alert('Você precisa escolher uma opção para continuar.');
+  };
+
+  // Escolher arquivo do dispositivo
+  selectFileBtn.onclick = () => {
+    const inputFile = document.createElement('input');
+    inputFile.type = 'file';
+    inputFile.accept = 'video/*,audio/*';
+    inputFile.onchange = e => {
+      const file = e.target.files[0];
+      if(!file) return;
+      const url = URL.createObjectURL(file);
+      playlist.push({url, name: file.name, addedBy: nickname});
+      updatePlaylistUI();
+      playMedia(url);
+      broadcast({type:'playlistUpdate', playlist});
+      fileMenuModal.style.display = 'none';
+    };
+    inputFile.click();
+  };
+
+  // Inserir link
+  insertLinkBtn.onclick = () => {
+    const url = prompt('Insira a URL do arquivo de mídia');
+    if(url) {
+      playlist.push({url, name: url, addedBy: nickname});
+      updatePlaylistUI();
+      playMedia(url);
+      broadcast({type:'playlistUpdate', playlist});
+      fileMenuModal.style.display = 'none';
+    }
+  };
+
+  // Transmitir tela
+  shareScreenBtn.onclick = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      mediaPlayer.srcObject = stream;
+      mediaPlayer.play().catch(() => {});
+      broadcast({type:'mediaStream', streamId: stream.id}); // Note: streams não podem ser enviados via PeerJS assim, vamos enviar aviso pra todos que a transmissão está ativa.
+      // Alternativa: todos conectados recebem a stream do peer que transmite a tela, mas isso precisa WebRTC p2p complexo
+      // Aqui, só avisaremos que há uma transmissão
+      broadcast({type:'systemMessage', message: `${nickname} está transmitindo a tela.`});
+      fileMenuModal.style.display = 'none';
+
+      // Quando stream acabar (usuário parar a transmissão)
+      stream.getVideoTracks()[0].addEventListener('ended', () => {
+        mediaPlayer.srcObject = null;
+        mediaPlayer.src = '';
+        broadcast({type:'mediaChange', url: ''});
+        broadcast({type:'systemMessage', message: `${nickname} parou a transmissão da tela.`});
+      });
+    } catch(e) {
+      alert('Erro ao tentar transmitir a tela: ' + e.message);
+    }
+  };
+
+  // Botão playlist abre janela separada no PC, ou substitui chat no celular
+  showPlaylistBtn.onclick = () => {
+    if(window.innerWidth < 768) {
+      // celular
+      if(chatArea.style.display !== 'none') {
+        chatArea.style.display = 'none';
+        renderPlaylistInChat();
+      } else {
+        chatArea.style.display = 'flex';
+        renderChatLog();
+      }
+    } else {
+      // PC abre janela externa
+      if(playlistWindow && !playlistWindow.closed) {
+        playlistWindow.focus();
+        playlistWindow.close();
+        playlistWindow = null;
+      } else {
+        playlistWindow = window.open('', 'playlistWindow', 'width=400,height=600');
+        updatePlaylistUI();
+      }
+    }
+  };
+
+  function renderPlaylistInChat() {
+    chatLog.innerHTML = playlist.length === 0 ? 
+      '<p>Sem arquivos ainda.</p>' :
+      playlist.map(item => `<div style="cursor:pointer;padding:4px;border-radius:4px;" onclick="window.playMedia('${item.url}')">${item.name} (adicionado por ${item.addedBy})</div>`).join('');
+  }
+
+  function renderChatLog() {
+    chatLog.innerHTML = ''; // aqui não retemos histórico real, seria preciso armazenar, só simulando
+  }
+
+  // Quando vídeo acabar, toca próximo da playlist se autoPlay ativado
+  mediaPlayer.onended = () => {
+    if(!autoPlay || playlist.length === 0) return;
+    let currentIndex = playlist.findIndex(i => i.url === mediaPlayer.src);
+    if(currentIndex === -1 || currentIndex === playlist.length -1) return;
+    const nextItem = playlist[currentIndex+1];
+    playMedia(nextItem.url);
+  };
+
+  // Eventos teclado para enviar mensagem no chat
+  chatInput.addEventListener('keydown', e => {
+    if(e.key === 'Enter' && chatInput.value.trim()) {
+      sendMessage(chatInput.value.trim());
+      e.preventDefault();
+    }
+  });
+  sendChatBtn.onclick = () => {
+    if(chatInput.value.trim()) sendMessage(chatInput.value.trim());
+  };
+
+  // Entrar na sala com Enter no input de nome
+  nicknameInput.addEventListener('keydown', e => {
+    if(e.key === 'Enter' && nicknameInput.value.trim()) {
+      enterRoomBtn.click();
+      e.preventDefault();
+    }
+  });
+
+  // Criar ou entrar na sala - mostra prompt para nome
+  createRoomBtn.onclick = () => {
+    roomAction = 'create';
+    roomId = genCode();
+    roomCodeInput.value = roomId;
     menuSetup.style.display = 'none';
+    namePrompt.style.display = 'flex';
+  };
+  joinRoomBtn.onclick = () => {
+    roomAction = 'join';
+    menuSetup.style.display = 'none';
+    namePrompt.style.display = 'flex';
+  };
+
+  enterRoomBtn.onclick = () => {
+    const nameVal = nicknameInput.value.trim();
+    if(!nameVal) return alert('Digite um nome!');
+    nickname = nameVal;
+    startPeer();
     namePrompt.style.display = 'none';
     mainUI.style.display = 'flex';
-  }
+  };
 
-  // Conectar e iniciar PeerJS
-  async function startPeer() {
-    if(roomAction === 'create') {
-      roomId = genCode();
-      isAdmin = true;
-      peer = new Peer(roomId);
-      peer.on('open', id => {
-        appendChat(`Sala criada: ${id}`, true);
-        showMainUI();
+  // Inicializa PeerJS e conexões
+  function startPeer() {
+    peer = new Peer();
+    connList = {};
+    isAdmin = (roomAction === 'create');
+    roomId = roomCodeInput.value.trim().toUpperCase();
+
+    peer.on('open', id => {
+      if(isAdmin) {
+        // Admin cria a sala
         addMember(id, nickname);
-        clearPlaylistBtn.style.display = 'inline-block';
         broadcastSystemMessage(`${nickname} (Admin) entrou na sala.`);
-      });
-    } else if(roomAction === 'join') {
-      roomId = roomCodeInput.value.trim().toUpperCase();
-      peer = new Peer();
-      peer.on('open', async id => {
+      } else {
+        // Conecta no admin (sala)
         const conn = peer.connect(roomId);
         conn.on('open', () => {
           conn.send({type:'joinRequest', name: nickname});
           conn.on('data', data => handleData(roomId, data));
           connList[roomId] = {conn, name: nickname};
         });
-      });
-    }
+      }
+    });
 
     peer.on('connection', conn => {
       const peerId = conn.peer;
@@ -421,193 +531,32 @@
     });
   }
 
-  // Envia mensagem no chat
-  function sendMessage(text) {
-    if(!text.trim()) return;
-    // Verifica comandos
-    if(text.startsWith('/')) {
-      handleCommand(text);
-      return;
-    }
-    appendChat(`Você: ${text}`);
-    broadcast({type:'chat', sender: nickname, text});
-    chatInput.value = '';
+  // Adiciona membro à lista (admin)
+  function addMember(id, name) {
+    connList[id] = {name};
   }
 
-  // Lida com comandos do admin e usuários
-  function handleCommand(text) {
-    const parts = text.split(' ');
-    const cmd = parts[0].toLowerCase();
-    if(cmd === '/kick' && isAdmin) {
-      if(parts.length < 2) {
-        alert('Use /kick NomeUsuario [Mensagem opcional]');
-        return;
-      }
-      const target = parts[1];
-      if(target.toLowerCase() === nickname.toLowerCase()) {
-        alert(`O ${genderSuffix(nickname)} Admin${genderSuffix(nickname, true)} não pode ser expulso da sala!`);
-        return;
-      }
-      const msg = parts.slice(2).join(' ') || 'Você foi expulso da sala!';
-      // Procurar conexão pelo nome
-      const entry = Object.entries(connList).find(([id, c]) => c.name && c.name.toLowerCase() === target.toLowerCase());
-      if(entry) {
-        const [peerId, connObj] = entry;
-        connObj.conn.send({type:'kickUser', target: connObj.name, message: msg});
-        broadcastSystemMessage(`${connObj.name} foi expulso da sala pelo admin.`);
-        connObj.conn.close();
-        delete connList[peerId];
-      } else {
-        alert('Usuário não encontrado.');
-      }
-    } else if(cmd === '/exit') {
-      if(isAdmin && parts[1] === 'all') {
-        broadcast({type:'exitAll'});
-        location.reload();
-      }
-    } else if(cmd === '/leave') {
-      leaveRoom();
-    } else if(cmd === '/leaveall' && isAdmin) {
-      broadcast({type:'leaveAll'});
-      leaveRoom();
-    } else {
-      alert('Comando desconhecido ou você não tem permissão.');
-    }
+  // Envia mensagem de sistema para todos
+  function broadcastSystemMessage(msg) {
+    appendChat(`<i style="color:#aaa;">${msg}</i>`);
+    broadcast({type:'systemMessage', message: msg});
   }
 
-  // Retorna "a" ou "o" conforme o final do nome para mensagens femininas/masculinas
-  function genderSuffix(name, capitalized = false) {
-    const lastChar = name.slice(-1).toLowerCase();
-    let suffix = 'o'; // padrão masculino
-    if('aeiouáéíóúãõ'.includes(lastChar)) suffix = 'a';
-    return capitalized ? suffix.toUpperCase() : suffix;
-  }
-
-  // Escolher mídia: abrir menu para escolher arquivo ou link
-  chooseMediaBtn.onclick = () => {
-    fileMenu.style.display = 'flex';
-  };
-
-  // Fechar playlists
-  function closePlaylist() {
-    playlistMenu.style.display = 'none';
-  }
-
-  showPlaylistBtn.onclick = () => {
-    if(window.innerWidth < 768) {
-      // Em celular, abre playlist no lugar do chat
-      if(playlistMenu.style.display === 'flex') {
-        playlistMenu.style.display = 'none';
-        chatArea.style.display = 'flex';
-      } else {
-        playlistMenu.style.display = 'flex';
-        chatArea.style.display = 'none';
-      }
-    } else {
-      // Em desktop, abre janela modal playlist
-      playlistMenu.style.display = playlistMenu.style.display === 'flex' ? 'none' : 'flex';
-    }
-  };
-
-  // Botão escolher arquivo
-  selectFileBtn.onclick = () => {
-    fileMenu.style.display = 'none';
-    const inputFile = document.createElement('input');
-    inputFile.type = 'file';
-    inputFile.accept = 'video/*,audio/*';
-    inputFile.onchange = e => {
-      const file = e.target.files[0];
-      if(!file) return;
-      const url = URL.createObjectURL(file);
-      playlist.push({url, name: file.name, addedBy: nickname});
-      updatePlaylistUI();
-      playMedia(url);
-      broadcast({type:'playlistUpdate', playlist});
-    };
-    inputFile.click();
-  };
-
-  // Botão inserir link
-  insertLinkBtn.onclick = () => {
-    fileMenu.style.display = 'none';
-    const url = prompt('Insira a URL do arquivo de mídia');
-    if(url) {
-      playlist.push({url, name: url, addedBy: nickname});
-      updatePlaylistUI();
-      playMedia(url);
-      broadcast({type:'playlistUpdate', playlist});
-    }
-  };
-
-  // Botão limpar playlist (apenas para admin)
-  clearPlaylistBtn.onclick = () => {
-    if(!isAdmin) return;
+  // Sai da sala
+  function leaveRoom() {
+    try { peer.destroy(); } catch(e){}
+    connList = {};
+    roomId = '';
+    nickname = '';
     playlist = [];
-    updatePlaylistUI();
-    broadcast({type:'playlistUpdate', playlist});
-  };
-
-  // Toggle autoplay
-  toggleAutoPlayBtn.onclick = () => {
-    autoPlay = !autoPlay;
-    toggleAutoPlayBtn.textContent = `Rep. Automática: ${autoPlay ? 'ON' : 'OFF'}`;
-  };
-
-  // Quando o vídeo acabar, se autoplay ligado, toca próximo da playlist
-  mediaPlayer.onended = () => {
-    if(!autoPlay || playlist.length === 0) return;
-    let currentIndex = playlist.findIndex(i => i.url === mediaPlayer.src);
-    if(currentIndex === -1 || currentIndex === playlist.length -1) return;
-    const nextItem = playlist[currentIndex+1];
-    playMedia(nextItem.url);
-  };
-
-  // Envia mensagem do chat ao apertar Enter
-  chatInput.addEventListener('keydown', e => {
-    if(e.key === 'Enter' && chatInput.value.trim()) {
-      sendMessage(chatInput.value.trim());
-      e.preventDefault();
-    }
-  });
-
-  sendChatBtn.onclick = () => {
-    if(chatInput.value.trim()) sendMessage(chatInput.value.trim());
-  };
-
-  // No prompt de nome, entrar com Enter também
-  nicknameInput.addEventListener('keydown', e => {
-    if(e.key === 'Enter' && nicknameInput.value.trim()) {
-      enterRoomBtn.click();
-      e.preventDefault();
-    }
-  });
-
-  // Criar sala
-  createRoomBtn.onclick = () => {
-    roomAction = 'create';
-    menuSetup.style.display = 'none';
-    namePrompt.style.display = 'flex';
-  };
-
-  // Entrar na sala
-  joinRoomBtn.onclick = () => {
-    roomAction = 'join';
-    menuSetup.style.display = 'none';
-    namePrompt.style.display = 'flex';
-  };
-
-  // Entrar após nome
-  enterRoomBtn.onclick = () => {
-    const nameVal = nicknameInput.value.trim();
-    if(!nameVal) return alert('Digite um nome!');
-    nickname = nameVal;
-    startPeer();
-  };
-
-  // Exibir playlist só para quem criou a sala (admin) botão limpar aparece só pra admin
-  function updateUIForAdmin() {
-    clearPlaylistBtn.style.display = isAdmin ? 'inline-block' : 'none';
+    mainUI.style.display = 'none';
+    namePrompt.style.display = 'none';
+    menuSetup.style.display = 'flex';
+    mediaPlayer.src = '';
   }
+
+  // Expor playMedia global para playlist funcionar no popup
+  window.playMedia = playMedia;
 
 })();
 </script>
