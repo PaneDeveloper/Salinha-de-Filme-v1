@@ -157,11 +157,6 @@
 
 <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <script>
-// Aqui está a modificação: compartilhar mídia entre todos
-// Quando o admin inicia a reprodução, envia a URL para todos conectados
-// Cada cliente então reproduz esse mesmo vídeo
-
-// Após selecionar ou inserir link:
 function broadcastMediaToAll(url) {
   Object.values(connList).forEach(c => {
     c.conn.send({type:'mediaChange', url});
@@ -170,13 +165,12 @@ function broadcastMediaToAll(url) {
   mediaPlayer.play();
 }
 
-// Atualizar funções de seleção de mídia para chamar broadcastMediaToAll()
-// E também tratar no handleData():
-
-// Dentro de handleData(peerId, msg):
-if (msg.type === 'mediaChange') {
-  mediaPlayer.src = msg.url;
-  mediaPlayer.play();
+function handleData(peerId, msg) {
+  if (msg.type === 'mediaChange') {
+    mediaPlayer.src = msg.url;
+    mediaPlayer.play();
+  }
+  // ... outros handlers aqui
 }
 </script>
 </body>
