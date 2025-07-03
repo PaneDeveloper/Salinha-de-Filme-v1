@@ -214,7 +214,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if(peer) peer.destroy();
     Object.values(connList).forEach(c=>c.conn.close());
     connList={}; chatLog.innerHTML='';
-    location.reload();
+    // Voltando para tela de código
+    mainUI.style.display = 'none';
+    namePrompt.style.display = 'none';
+    menuSetup.style.display = 'flex';
+    nicknameInput.value = '';
+    roomCodeInput.value = '';
+    nickname = '';
+    isAdmin = false;
   }
 
   createBtn.onclick=()=>{
@@ -261,209 +268,191 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   function processCommand(text){
-    if(!isAdmin) return false;
     if(!text.startsWith('/')) return false;
 
-    const kickMatch = text.match(/^\/kick\s+(\S+)\s+(.+)$/i);
-    if(kickMatch){
-      const userToKick = kickMatch[1];
-      const kickMsg = kickMatch[2];
+    if(isAdmin){
+      const kickMatch = text.match(/^\/kick\s+(\S+)\s+(.+)$/i);
+      if(kickMatch){
+        const userToKick = kickMatch[1];
+        const kickMsg = kickMatch[2];
 
-      if(userToKick.toLowerCase() === nickname.toLowerCase()){
-        const nome = userToKick.trim();
-        const ultimoChar = nome.charAt(nome.length -1).toLowerCase();
-        const feminino = (ultimoChar === 'a');
-        if(feminino){
-          alert(`A Admin não pode ser expulsa da sala!`);
-        } else {
-          alert(`O Admin não pode ser expulso da sala!`);
+        if(userToKick.toLowerCase() === nickname.toLowerCase()){
+          const ultimoChar = userToKick.trim().slice(-1).toLowerCase();
+          const feminino = (ultimoChar === 'a');
+          alert(feminino ? 
+            `A Admin não pode ser expulsa da sala!` : 
+            `O Admin não pode ser expulso da sala!`);
+          return true;
         }
-        return true;
-      }
 
-      let targetPeerId = null;
-      for(const [pid, c] of Object.entries(connList)){
-        if(c.nickname && c.nickname.toLowerCase() === userToKick.toLowerCase()){
-          targetPeerId = pid;
-          break;
+        let targetPeerId = null;
+        for(const [pid, c] of Object.entries(connList)){
+          if(c.nickname && c.nickname.toLowerCase() === userToKick.toLowerCase()){
+            targetPeerId = pid;
+            break;
+          }
         }
-      }
-      if(targetPeerId){
-        connList[targetPeerId].conn.send({type:'adminAction', action:'kick', message: kickMsg});
-        appendChat(`Sistema: Usuário ${userToKick} foi kickado. Mensagem: ${kickMsg}`);
-        return true;
-      } else {
-        appendChat(`Sistema: Usuário ${userToKick} não encontrado.`);
-        return true;
-      }
-    }
+        if(targetPeerId){
+          connList
 
-    if(/^\/exit(\s+all\s+close\s+tab)?$/i.test(text)){
-      Object.values(connList).forEach(c=>{
-        c.conn.send({type:'adminAction', action:'exit'});
-      });
-      appendChat('Sistema: O administrador encerrou a sala. Todos serão desconectados.');
-      leaveCall();
-      return true;
-    }
 
-    return false;
-  }
 
-  function handleData(peerId, msg){
-    if(msg.type==='joinRequest' && isAdmin){
-      const ok = confirm(`${msg.name} quer entrar na sala. Permitir?`);
-      connList[peerId].conn.send({type:'joinResponse',accepted:ok});
-      if(ok){
-        connList[peerId].nickname = msg.name;
-        announceJoin(msg.name);
-      }
-    }
-    if(msg.type==='joinResponse'){
-      if(msg.accepted){
-        appendChat('Você entrou na sala!');
-      } else {
-        alert('Entrada negada pelo administrador.');
-      }
-    }
-    if(msg.type==='chat'){
-      appendChat(`${msg.sender}: ${msg.text}`);
-    }
-    if(msg.type==='adminAction' && !isAdmin){
-      if(msg.action==='kick'){
-        alert(msg.message || 'Você foi kickado.');
-        leaveCall();
-      }
-      if(msg.action==='exit'){
-        alert('Sala encerrada pelo administrador. A aba será fechada.');
-        window.close();
-      }
-    }
-  }
 
-  chatInput.addEventListener('keyup', e => {
-    if(e.key === 'Enter' && chatInput.value.trim()){
-      const text = chatInput.value.trim();
-      if(!processCommand(text)){
-        Object.values(connList).forEach(c => c.conn.send({type:'chat', sender:nickname, text}));
-        appendChat(`Você: ${text}`);
-      }
-      chatInput.value = '';
-    }
+
+O ChatGPT disse:
+[targetPeerId].conn.send({type:'adminAction', action:'kick', message: kickMsg});
+appendChat(Sistema: Usuário ${userToKick} foi kickado. Mensagem: ${kickMsg});
+} else {
+appendChat(Sistema: Usuário ${userToKick} não encontrado.);
+}
+return true;
+}
+}
+
+pgsql
+Copiar
+Editar
+if(text.toLowerCase() === '/leave'){
+  appendChat('Sistema: Você saiu da sala.');
+  leaveCall();
+  return true;
+}
+
+if(isAdmin && text.toLowerCase() === '/leave all'){
+  Object.values(connList).forEach(c=>{
+    c.conn.send({type:'adminAction', action:'leaveAll'});
   });
+  appendChat('Sistema: Admin encerrou a sala para todos.');
+  leaveCall();
+  return true;
+}
 
-  // Enviar com botão (opcional)
-  // document.getElementById('sendChatBtn').onclick = () => {
-  //   chatInput.dispatchEvent(new KeyboardEvent('keyup', {key:'Enter'}));
-  // };
+if(isAdmin && /^\/exit(\s+all\s+close\s+tab)?$/i.test(text)){
+  Object.values(connList).forEach(c=>{
+    c.conn.send({type:'adminAction', action:'exit'});
+  });
+  appendChat('Sistema: O administrador encerrou a sala. Todos serão desconectados.');
+  leaveCall();
+  return true;
+}
 
-  // ======= Player e playlist =======
-  chooseMediaBtn.onclick = () => {
-    fileMenu.style.display = 'flex';
-  };
-  selectFileBtn.onclick = () => {
-    fileMenu.style.display = 'none';
-    const inputFile = document.createElement('input');
-    inputFile.type = 'file';
-    inputFile.accept = "video/*,audio/*";
-    inputFile.onchange = e => {
-      const file = e.target.files[0];
-      if(file){
-        const url = URL.createObjectURL(file);
-        playlist.push({name:file.name, url, sender: nickname});
-        updatePlaylistUI();
-      }
-    };
-    inputFile.click();
-  };
-  insertLinkBtn.onclick = () => {
-    fileMenu.style.display = 'none';
-    const url = prompt('Cole o link do arquivo (qualquer site que permita reprodução)');
-    if(url){
-      const name = url.split('/').pop().split('?')[0] || url;
-      playlist.push({name, url, sender: nickname});
-      updatePlaylistUI();
-    }
-  };
+return false;
+}
 
-  function updatePlaylistUI(){
-    if(playlist.length === 0){
-      playlistContent.textContent = 'Sem arquivos ainda.';
-      return;
-    }
-    playlistContent.innerHTML = '';
-    playlist.forEach((item, i) => {
-      const div = document.createElement('div');
-      div.className = 'playlist-item';
-      div.textContent = `${item.sender}: ${item.name}`;
-      div.onclick = () => playFromPlaylist(i);
-      playlistContent.appendChild(div);
-    });
-  }
+chatInput.addEventListener('keydown', e=>{
+if(e.key === 'Enter' && chatInput.value.trim()){
+const text = chatInput.value.trim();
+if(!processCommand(text)){
+Object.values(connList).forEach(c=>c.conn.send({type:'chat',sender:nickname,text}));
+appendChat(${nickname}: ${text});
+}
+chatInput.value = '';
+}
+});
 
-  function playFromPlaylist(index){
-    if(index < 0 || index >= playlist.length) return;
-    const item = playlist[index];
-    mediaPlayer.src = item.url;
-    mediaPlayer.play();
-  }
+function handleData(peerId,msg){
+if(msg.type==='joinRequest' && isAdmin){
+connList[peerId].nickname = msg.name;
+announceJoin(msg.name);
+connList[peerId].conn.send({type:'joinResponse',accepted:true});
+}
+if(msg.type==='joinResponse'){
+if(msg.accepted){ appendChat('Você entrou na sala!'); }
+else alert('Entrada negada pelo administrador.');
+}
+if(msg.type==='chat'){ appendChat(${msg.sender}: ${msg.text}); }
+if(msg.type==='adminAction'){
+if(msg.action==='kick'){ alert(msg.message || 'Você foi kickado.'); leaveCall(); }
+if(msg.action==='exit'){ alert('Sala encerrada pelo administrador. A aba será fechada.'); window.close(); }
+if(msg.action==='leaveAll'){ alert('A sala foi encerrada pelo administrador. Você foi desconectado.'); leaveCall(); }
+}
+}
 
-  showPlaylistBtn.onclick = () => {
-    const isMobile = window.innerWidth <= 768;
-    if(isMobile){
-      chatArea.style.display = 'none';
-      playlistMenu.style.display = 'flex';
-    } else {
-      playlistMenu.style.display = playlistMenu.style.display === 'flex' ? 'none' : 'flex';
-    }
-  };
+chooseMediaBtn.onclick = () => fileMenu.style.display = 'flex';
 
-  function closePlaylist(){
-    playlistMenu.style.display = 'none';
-    if(window.innerWidth <= 768) chatArea.style.display = 'flex';
-  }
+selectFileBtn.onclick = () => {
+fileMenu.style.display = 'none';
+const inputFile = document.createElement('input');
+inputFile.type = 'file';
+inputFile.accept = "video/,audio/";
+inputFile.onchange = e => {
+const file = e.target.files[0];
+if(file){
+const url = URL.createObjectURL(file);
+playlist.push({name:file.name, url, sender: nickname});
+updatePlaylistUI();
+}
+};
+inputFile.click();
+};
 
-  clearPlaylistBtn.onclick = () => {
-    if(!isAdmin) return;
-    playlist.length = 0;
-    updatePlaylistUI();
-  };
+insertLinkBtn.onclick = () => {
+fileMenu.style.display = 'none';
+const url = prompt('Cole o link do arquivo (qualquer site que permita reprodução)');
+if(url){
+const name = url.split('/').pop().split('?')[0] || url;
+playlist.push({name, url, sender: nickname});
+updatePlaylistUI();
+}
+};
 
-  toggleAutoPlay.onclick = () => {
-    autoPlay = !autoPlay;
-    toggleAutoPlay.textContent = `Rep. Automática: ${autoPlay ? 'ON' : 'OFF'}`;
-  };
+function updatePlaylistUI(){
+if(playlist.length === 0){
+playlistContent.textContent = 'Sem arquivos ainda.';
+return;
+}
+playlistContent.innerHTML = '';
+playlist.forEach((item, i) => {
+const div = document.createElement('div');
+div.className = 'playlist-item';
+div.textContent = ${item.sender}: ${item.name};
+div.onclick = () => playFromPlaylist(i);
+playlistContent.appendChild(div);
+});
+}
 
-  mediaPlayer.onended = () => {
-    if(autoPlay && playlist.length > 0){
-      const currentIndex = playlist.findIndex(item => item.url === mediaPlayer.src);
-      let nextIndex = currentIndex + 1;
-      if(nextIndex >= playlist.length) nextIndex = 0;
-      playFromPlaylist(nextIndex);
-    }
-  };
+function playFromPlaylist(index){
+if(index < 0 || index >= playlist.length) return;
+const item = playlist[index];
+mediaPlayer.src = item.url;
+mediaPlayer.play();
+}
 
-  // ====== Auto ajuste da tela de código (menuSetup) =======
-  function ajustaTelaSetup(){
-    const width = window.innerWidth;
-    if(width <= 768){
-      menuSetup.style.width = '90%';
-      menuSetup.style.margin = 'auto';
-      menuSetup.style.fontSize = '1.1rem';
-    } else if(width > 1600){
-      menuSetup.style.width = '600px';
-      menuSetup.style.margin = '2rem auto';
-      menuSetup.style.fontSize = '1rem';
-    } else {
-      menuSetup.style.width = '400px';
-      menuSetup.style.margin = '5rem auto';
-      menuSetup.style.fontSize = '1rem';
-    }
-  }
-  window.addEventListener('resize', ajustaTelaSetup);
-  ajustaTelaSetup();
+showPlaylistBtn.onclick = () => {
+const isMobile = window.innerWidth <= 768;
+if(isMobile){
+chatArea.style.display = 'none';
+playlistMenu.style.display = 'flex';
+} else {
+playlistMenu.style.display = playlistMenu.style.display === 'flex' ? 'none' : 'flex';
+}
+};
 
+function closePlaylist(){
+playlistMenu.style.display = 'none';
+if(window.innerWidth <= 768) chatArea.style.display = 'flex';
+}
+
+clearPlaylistBtn.onclick = () => {
+if(!isAdmin) return;
+playlist.length = 0;
+updatePlaylistUI();
+};
+
+toggleAutoPlay.onclick = () => {
+autoPlay = !autoPlay;
+toggleAutoPlay.textContent = Rep. Automática: ${autoPlay ? 'ON' : 'OFF'};
+};
+
+mediaPlayer.onended = () => {
+if(autoPlay && playlist.length > 0){
+const currentIndex = playlist.findIndex(item => item.url === mediaPlayer.src);
+let nextIndex = currentIndex + 1;
+if(nextIndex >= playlist.length) nextIndex = 0;
+playFromPlaylist(nextIndex);
+}
+};
 });
 </script>
-</body>
-</html>
+
+</body> </html> ```
