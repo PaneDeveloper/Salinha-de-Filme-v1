@@ -132,13 +132,13 @@
       </div>
 
       <div id="fileMenu">
-        <button class="closeBtn" onclick="fileMenu.style.display='none'">✖</button>
+        <button class="closeBtn" onclick="document.getElementById('fileMenu').style.display='none'">✖</button>
         <button id="selectFileBtn">Escolher do dispositivo</button>
         <button id="insertLinkBtn">Inserir link</button>
       </div>
 
       <div id="playlistMenu">
-        <button class="closeBtn" onclick="closePlaylist()">✖</button>
+        <button class="closeBtn" onclick="document.getElementById('playlistMenu').style.display='none'">✖</button>
         <div class="playlist-controls">
           <button id="toggleAutoPlay" class="btn">Rep. Automática: OFF</button>
           <button id="clearPlaylistBtn" class="btn" style="display:none;">Limpar Fila</button>
@@ -157,6 +157,9 @@
 
 <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <script>
+let connList = {};
+const mediaPlayer = document.getElementById('mediaPlayer');
+
 function broadcastMediaToAll(url) {
   Object.values(connList).forEach(c => {
     c.conn.send({type:'mediaChange', url});
@@ -170,7 +173,6 @@ function handleData(peerId, msg) {
     mediaPlayer.src = msg.url;
     mediaPlayer.play();
   }
-  // ... outros handlers aqui
 }
 
 const menuSetup = document.getElementById('menuSetup');
