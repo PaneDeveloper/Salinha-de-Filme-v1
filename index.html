@@ -63,7 +63,6 @@
   #chatInput{flex:1;padding:.5rem;border-radius:4px;border:none;background:#222;color:#EEE;}
   #menuSetup,#namePrompt{padding:1rem;display:flex;flex-direction:column;gap:.5rem;align-items:center;}
   #sendChatBtn{display:none;}
-
   #fileMenu, #playlistMenu {
     position: absolute;
     top: 10%;
@@ -113,346 +112,72 @@
 </style>
 </head>
 <body>
+  <div id="menuSetup">
+    <input id="roomCode" placeholder="Código da sala (ex: MX09)"/>
+    <button id="createRoom" class="btn">Criar Sala</button>
+    <button id="joinRoom" class="btn">Entrar na Sala</button>
+  </div>
 
-<div id="menuSetup">
-  <input id="roomCode" placeholder="Código da sala (ex: MX09)"/>
-  <button id="createRoom" class="btn">Criar Sala</button>
-  <button id="joinRoom" class="btn">Entrar na Sala</button>
-</div>
+  <div id="namePrompt" style="display:none;">
+    <input id="nickname" placeholder="Seu nome de usuário"/>
+    <button id="enterRoom" class="btn">Entrar</button>
+  </div>
 
-<div id="namePrompt" style="display:none;">
-  <input id="nickname" placeholder="Seu nome de usuário"/>
-  <button id="enterRoom" class="btn">Entrar</button>
-</div>
-
-<div id="mainUI" style="display:none;">
-  <div id="playerArea">
-    <video id="mediaPlayer" controls></video>
-    <div id="controls">
-      <button id="chooseMediaBtn" class="btn">Escolher Arquivo/Link</button>
-      <button id="showPlaylistBtn" class="btn">📃 Playlist</button>
-    </div>
-
-    <div id="fileMenu">
-      <button class="closeBtn" onclick="fileMenu.style.display='none'">✖</button>
-      <button id="selectFileBtn">Escolher do dispositivo</button>
-      <button id="insertLinkBtn">Inserir link</button>
-    </div>
-
-    <div id="playlistMenu">
-      <button class="closeBtn" onclick="closePlaylist()">✖</button>
-      <div class="playlist-controls">
-        <button id="toggleAutoPlay" class="btn">Rep. Automática: OFF</button>
-        <button id="clearPlaylistBtn" class="btn" style="display:none;">Limpar Fila</button>
+  <div id="mainUI" style="display:none;">
+    <div id="playerArea">
+      <video id="mediaPlayer" controls></video>
+      <div id="controls">
+        <button id="chooseMediaBtn" class="btn">Escolher Arquivo/Link</button>
+        <button id="showPlaylistBtn" class="btn">📃 Playlist</button>
       </div>
-      <div id="playlistContent">Sem arquivos ainda.</div>
+
+      <div id="fileMenu">
+        <button class="closeBtn" onclick="fileMenu.style.display='none'">✖</button>
+        <button id="selectFileBtn">Escolher do dispositivo</button>
+        <button id="insertLinkBtn">Inserir link</button>
+      </div>
+
+      <div id="playlistMenu">
+        <button class="closeBtn" onclick="closePlaylist()">✖</button>
+        <div class="playlist-controls">
+          <button id="toggleAutoPlay" class="btn">Rep. Automática: OFF</button>
+          <button id="clearPlaylistBtn" class="btn" style="display:none;">Limpar Fila</button>
+        </div>
+        <div id="playlistContent">Sem arquivos ainda.</div>
+      </div>
+    </div>
+    <div id="chatArea">
+      <div id="chatLog"></div>
+      <div id="chatInputArea">
+        <input id="chatInput" placeholder="Digite sua mensagem"/>
+        <button id="sendChatBtn" class="btn">Enviar</button>
+      </div>
     </div>
   </div>
-  <div id="chatArea">
-    <div id="chatLog"></div>
-    <div id="chatInputArea">
-      <input id="chatInput" placeholder="Digite sua mensagem"/>
-      <button id="sendChatBtn" class="btn">Enviar</button>
-    </div>
-  </div>
-</div>
 
 <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  const menuSetup = document.getElementById('menuSetup');
-  const namePrompt = document.getElementById('namePrompt');
-  const mainUI = document.getElementById('mainUI');
-  const chatLog = document.getElementById('chatLog');
-  const chatInput = document.getElementById('chatInput');
-  const roomCodeInput = document.getElementById('roomCode');
-  const nicknameInput = document.getElementById('nickname');
-  const createBtn = document.getElementById('createRoom');
-  const joinBtn = document.getElementById('joinRoom');
-  const enterRoomBtn = document.getElementById('enterRoom');
+// Aqui está a modificação: compartilhar mídia entre todos
+// Quando o admin inicia a reprodução, envia a URL para todos conectados
+// Cada cliente então reproduz esse mesmo vídeo
 
-  const chooseMediaBtn = document.getElementById('chooseMediaBtn');
-  const fileMenu = document.getElementById('fileMenu');
-  const showPlaylistBtn = document.getElementById('showPlaylistBtn');
-  const playlistMenu = document.getElementById('playlistMenu');
-  const playlistContent = document.getElementById('playlistContent');
-  const mediaPlayer = document.getElementById('mediaPlayer');
-  const clearPlaylistBtn = document.getElementById('clearPlaylistBtn');
-  const toggleAutoPlay = document.getElementById('toggleAutoPlay');
-  const chatArea = document.getElementById('chatArea');
-  const selectFileBtn = document.getElementById('selectFileBtn');
-  const insertLinkBtn = document.getElementById('insertLinkBtn');
-
-  let peer, connList = {}, isAdmin = false;
-  let roomID = null, nickname = '', userCount = 0;
-  const playlist = [];
-  let autoPlay = false;
-
-  function genCode(){return Math.random().toString(36).slice(2,6).toUpperCase();}
-
-  function appendChat(msg){ 
-    const d=document.createElement('div');
-    d.textContent=msg;
-    chatLog.append(d);
-    chatLog.scrollTop=chatLog.scrollHeight;
-  }
-
-  function announceJoin(name){
-    Object.values(connList).forEach(c=>{
-      c.conn.send({type:'chat',sender:'Sistema',text:`${name} entrou na sala.`});
-    });
-    appendChat(`Sistema: ${name} entrou na sala.`);
-  }
-
-  function enterCall(){
-    namePrompt.style.display='none';
-    mainUI.style.display='flex';
-    if(isAdmin) clearPlaylistBtn.style.display = 'inline-block';
-  }
-
-  function leaveCall(){
-    if(peer) peer.destroy();
-    Object.values(connList).forEach(c=>c.conn.close());
-    connList={}; chatLog.innerHTML='';
-    // Voltando para tela de código
-    mainUI.style.display = 'none';
-    namePrompt.style.display = 'none';
-    menuSetup.style.display = 'flex';
-    nicknameInput.value = '';
-    roomCodeInput.value = '';
-    nickname = '';
-    isAdmin = false;
-  }
-
-  createBtn.onclick=()=>{
-    roomID = genCode();
-    isAdmin = true;
-    menuSetup.style.display = 'none';
-    namePrompt.style.display = 'flex';
-  };
-
-  joinBtn.onclick=()=>{
-    roomID = roomCodeInput.value.trim();
-    if(roomID){
-      menuSetup.style.display = 'none';
-      namePrompt.style.display = 'flex';
-    }
-  };
-
-  enterRoomBtn.onclick=()=>{
-    nickname = nicknameInput.value.trim() || 'Usuário';
-    peer = isAdmin ? new Peer(roomID) : new Peer();
-
-    peer.on('open', id => {
-      if(isAdmin){
-        appendChat('Sala criada com ID: ' + id);
-      } else {
-        const conn = peer.connect(roomID);
-        conn.on('open', ()=>{
-          conn.send({type:'joinRequest',name:nickname});
-        });
-        conn.on('data',msg=>handleData(roomID,msg));
-        connList[roomID]={conn,initiator:true, nickname};
-      }
-      if(isAdmin){
-        peer.on('connection', c=>{
-          c.on('open',()=>{
-            userCount++;
-            connList[c.peer]={conn:c};
-            c.on('data',msg=>handleData(c.peer,msg));
-          });
-        });
-      }
-      enterCall();
-    });
-  };
-
-  function processCommand(text){
-    if(!text.startsWith('/')) return false;
-
-    if(isAdmin){
-      const kickMatch = text.match(/^\/kick\s+(\S+)\s+(.+)$/i);
-      if(kickMatch){
-        const userToKick = kickMatch[1];
-        const kickMsg = kickMatch[2];
-
-        if(userToKick.toLowerCase() === nickname.toLowerCase()){
-          const ultimoChar = userToKick.trim().slice(-1).toLowerCase();
-          const feminino = (ultimoChar === 'a');
-          alert(feminino ? 
-            `A Admin não pode ser expulsa da sala!` : 
-            `O Admin não pode ser expulso da sala!`);
-          return true;
-        }
-
-        let targetPeerId = null;
-        for(const [pid, c] of Object.entries(connList)){
-          if(c.nickname && c.nickname.toLowerCase() === userToKick.toLowerCase()){
-            targetPeerId = pid;
-            break;
-          }
-        }
-        if(targetPeerId){
-          connList
-
-
-
-
-
-O ChatGPT disse:
-[targetPeerId].conn.send({type:'adminAction', action:'kick', message: kickMsg});
-appendChat(Sistema: Usuário ${userToKick} foi kickado. Mensagem: ${kickMsg});
-} else {
-appendChat(Sistema: Usuário ${userToKick} não encontrado.);
-}
-return true;
-}
-}
-
-pgsql
-Copiar
-Editar
-if(text.toLowerCase() === '/leave'){
-  appendChat('Sistema: Você saiu da sala.');
-  leaveCall();
-  return true;
-}
-
-if(isAdmin && text.toLowerCase() === '/leave all'){
-  Object.values(connList).forEach(c=>{
-    c.conn.send({type:'adminAction', action:'leaveAll'});
+// Após selecionar ou inserir link:
+function broadcastMediaToAll(url) {
+  Object.values(connList).forEach(c => {
+    c.conn.send({type:'mediaChange', url});
   });
-  appendChat('Sistema: Admin encerrou a sala para todos.');
-  leaveCall();
-  return true;
+  mediaPlayer.src = url;
+  mediaPlayer.play();
 }
 
-if(isAdmin && /^\/exit(\s+all\s+close\s+tab)?$/i.test(text)){
-  Object.values(connList).forEach(c=>{
-    c.conn.send({type:'adminAction', action:'exit'});
-  });
-  appendChat('Sistema: O administrador encerrou a sala. Todos serão desconectados.');
-  leaveCall();
-  return true;
-}
+// Atualizar funções de seleção de mídia para chamar broadcastMediaToAll()
+// E também tratar no handleData():
 
-return false;
+// Dentro de handleData(peerId, msg):
+if (msg.type === 'mediaChange') {
+  mediaPlayer.src = msg.url;
+  mediaPlayer.play();
 }
-
-chatInput.addEventListener('keydown', e=>{
-if(e.key === 'Enter' && chatInput.value.trim()){
-const text = chatInput.value.trim();
-if(!processCommand(text)){
-Object.values(connList).forEach(c=>c.conn.send({type:'chat',sender:nickname,text}));
-appendChat(${nickname}: ${text});
-}
-chatInput.value = '';
-}
-});
-
-function handleData(peerId,msg){
-if(msg.type==='joinRequest' && isAdmin){
-connList[peerId].nickname = msg.name;
-announceJoin(msg.name);
-connList[peerId].conn.send({type:'joinResponse',accepted:true});
-}
-if(msg.type==='joinResponse'){
-if(msg.accepted){ appendChat('Você entrou na sala!'); }
-else alert('Entrada negada pelo administrador.');
-}
-if(msg.type==='chat'){ appendChat(${msg.sender}: ${msg.text}); }
-if(msg.type==='adminAction'){
-if(msg.action==='kick'){ alert(msg.message || 'Você foi kickado.'); leaveCall(); }
-if(msg.action==='exit'){ alert('Sala encerrada pelo administrador. A aba será fechada.'); window.close(); }
-if(msg.action==='leaveAll'){ alert('A sala foi encerrada pelo administrador. Você foi desconectado.'); leaveCall(); }
-}
-}
-
-chooseMediaBtn.onclick = () => fileMenu.style.display = 'flex';
-
-selectFileBtn.onclick = () => {
-fileMenu.style.display = 'none';
-const inputFile = document.createElement('input');
-inputFile.type = 'file';
-inputFile.accept = "video/,audio/";
-inputFile.onchange = e => {
-const file = e.target.files[0];
-if(file){
-const url = URL.createObjectURL(file);
-playlist.push({name:file.name, url, sender: nickname});
-updatePlaylistUI();
-}
-};
-inputFile.click();
-};
-
-insertLinkBtn.onclick = () => {
-fileMenu.style.display = 'none';
-const url = prompt('Cole o link do arquivo (qualquer site que permita reprodução)');
-if(url){
-const name = url.split('/').pop().split('?')[0] || url;
-playlist.push({name, url, sender: nickname});
-updatePlaylistUI();
-}
-};
-
-function updatePlaylistUI(){
-if(playlist.length === 0){
-playlistContent.textContent = 'Sem arquivos ainda.';
-return;
-}
-playlistContent.innerHTML = '';
-playlist.forEach((item, i) => {
-const div = document.createElement('div');
-div.className = 'playlist-item';
-div.textContent = ${item.sender}: ${item.name};
-div.onclick = () => playFromPlaylist(i);
-playlistContent.appendChild(div);
-});
-}
-
-function playFromPlaylist(index){
-if(index < 0 || index >= playlist.length) return;
-const item = playlist[index];
-mediaPlayer.src = item.url;
-mediaPlayer.play();
-}
-
-showPlaylistBtn.onclick = () => {
-const isMobile = window.innerWidth <= 768;
-if(isMobile){
-chatArea.style.display = 'none';
-playlistMenu.style.display = 'flex';
-} else {
-playlistMenu.style.display = playlistMenu.style.display === 'flex' ? 'none' : 'flex';
-}
-};
-
-function closePlaylist(){
-playlistMenu.style.display = 'none';
-if(window.innerWidth <= 768) chatArea.style.display = 'flex';
-}
-
-clearPlaylistBtn.onclick = () => {
-if(!isAdmin) return;
-playlist.length = 0;
-updatePlaylistUI();
-};
-
-toggleAutoPlay.onclick = () => {
-autoPlay = !autoPlay;
-toggleAutoPlay.textContent = Rep. Automática: ${autoPlay ? 'ON' : 'OFF'};
-};
-
-mediaPlayer.onended = () => {
-if(autoPlay && playlist.length > 0){
-const currentIndex = playlist.findIndex(item => item.url === mediaPlayer.src);
-let nextIndex = currentIndex + 1;
-if(nextIndex >= playlist.length) nextIndex = 0;
-playFromPlaylist(nextIndex);
-}
-};
-});
 </script>
-
-</body> </html> ```
+</body>
+</html>
