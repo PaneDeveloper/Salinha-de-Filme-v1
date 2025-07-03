@@ -29,7 +29,7 @@
 
   @media (max-width: 768px) {
     #mainUI {
-      display: none !important; /* esconder inicialmente */
+      display: flex !important;
       flex-direction: column !important;
       width: 100% !important;
       height: 100vh !important;
@@ -109,10 +109,6 @@
   .playlist-item:hover {
     background: #555;
   }
-  .system-msg {
-    color: #0ff;
-    font-style: italic;
-  }
 </style>
 </head>
 <body>
@@ -136,13 +132,13 @@
       </div>
 
       <div id="fileMenu">
-        <button class="closeBtn" onclick="document.getElementById('fileMenu').style.display='none'">✖</button>
+        <button class="closeBtn" onclick="fileMenu.style.display='none'">✖</button>
         <button id="selectFileBtn">Escolher do dispositivo</button>
         <button id="insertLinkBtn">Inserir link</button>
       </div>
 
       <div id="playlistMenu">
-        <button class="closeBtn" onclick="document.getElementById('playlistMenu').style.display='none'">✖</button>
+        <button class="closeBtn" onclick="closePlaylist()">✖</button>
         <div class="playlist-controls">
           <button id="toggleAutoPlay" class="btn">Rep. Automática: OFF</button>
           <button id="clearPlaylistBtn" class="btn" style="display:none;">Limpar Fila</button>
@@ -153,7 +149,7 @@
     <div id="chatArea">
       <div id="chatLog"></div>
       <div id="chatInputArea">
-        <input id="chatInput" placeholder="Digite sua mensagem" autocomplete="off"/>
+        <input id="chatInput" placeholder="Digite sua mensagem"/>
         <button id="sendChatBtn" class="btn">Enviar</button>
       </div>
     </div>
@@ -161,119 +157,109 @@
 
 <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <script>
-let connList = {};
-let peer;
-let myId = '';
+let peer, connList = {}, mediaStream;
 let isAdmin = false;
 let roomId = '';
 let nickname = '';
+let roomAction = '';
 
 const menuSetup = document.getElementById('menuSetup');
 const namePrompt = document.getElementById('namePrompt');
 const mainUI = document.getElementById('mainUI');
 const nicknameInput = document.getElementById('nickname');
-const enterRoomBtn = document.getElementById('enterRoom');
 const roomCodeInput = document.getElementById('roomCode');
+const mediaPlayer = document.getElementById('mediaPlayer');
 const chatLog = document.getElementById('chatLog');
 const chatInput = document.getElementById('chatInput');
+const enterRoomBtn = document.getElementById('enterRoom');
+const createRoomBtn = document.getElementById('createRoom');
+const joinRoomBtn = document.getElementById('joinRoom');
+const chooseMediaBtn = document.getElementById('chooseMediaBtn');
+const fileMenu = document.getElementById('fileMenu');
+const selectFileBtn = document.getElementById('selectFileBtn');
+const insertLinkBtn = document.getElementById('insertLinkBtn');
+const showPlaylistBtn = document.getElementById('showPlaylistBtn');
+const playlistMenu = document.getElementById('playlistMenu');
+const playlistContent = document.getElementById('playlistContent');
+const toggleAutoPlayBtn = document.getElementById('toggleAutoPlay');
+const clearPlaylistBtn = document.getElementById('clearPlaylistBtn');
 
-const mediaPlayer = document.getElementById('mediaPlayer');
+function genCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for(let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
 
 function appendChat(msg, isSystem = false) {
-  const div = document.createElement('div');
-  div.textContent = msg;
-  if (isSystem) div.classList.add('system-msg');
-  chatLog.appendChild(div);
+  const d = document.createElement('div');
+  d.textContent = msg;
+  if(isSystem) d.style.fontStyle = 'italic';
+  chatLog.appendChild(d);
   chatLog.scrollTop = chatLog.scrollHeight;
 }
 
-// Broadcast para todos os conectados (exceto sender opcional)
-function broadcast(msg, exceptPeerId = null) {
-  Object.entries(connList).forEach(([peerId, connObj]) => {
-    if (peerId !== exceptPeerId) {
-      connObj.conn.send(msg);
-    }
+function broadcast(msg) {
+  Object.values(connList).forEach(c => {
+    c.conn.send(msg);
   });
 }
 
-// Criar Peer
 function createPeer(id) {
   peer = new Peer(id);
-
-  peer.on('open', id => {
-    myId = id;
-    isAdmin = (roomAction === 'create');
+  peer.on('open', () => {
+    isAdmin = true;
     appendChat(`Sistema: Sala criada com código ${id}`, true);
     enterRoomUI();
   });
 
-  peer.on('connection', conn => {
-    const remoteId = conn.peer;
-    connList[remoteId] = {conn};
-    conn.on('data', data => handleData(remoteId, data));
-    conn.on('open', () => {
-      console.log('Conexão aberta com', remoteId);
-      if (isAdmin) {
-        conn.send({type:'joinResponse', accepted:true, assignedID: remoteId});
-        broadcast({type:'system', text:`Usuário ${remoteId} entrou na sala`});
-        appendChat(`Sistema: Usuário ${remoteId} entrou na sala`, true);
-      }
+  peer.on('connection', c => {
+    c.on('open', () => {
+      connList[c.peer] = {conn: c};
+      c.on('data', msg => handleData(c.peer, msg));
+      c.on('close', () => {
+        appendChat(`Sistema: Usuário ${c.peer} saiu da sala.`, true);
+        delete connList[c.peer];
+      });
     });
-    conn.on('close', () => {
-      delete connList[remoteId];
-      broadcast({type:'system', text:`Usuário ${remoteId} saiu da sala`});
-      appendChat(`Sistema: Usuário ${remoteId} saiu da sala`, true);
-    });
-  });
-
-  peer.on('error', err => {
-    console.error('Peer error:', err);
-    alert('Erro no Peer: ' + err);
   });
 }
 
 function joinRoom(id) {
   peer = new Peer();
-
-  peer.on('open', myIdLocal => {
-    myId = myIdLocal;
+  peer.on('open', myId => {
     const conn = peer.connect(id);
-    connList[id] = {conn, initiator:true};
-
     conn.on('open', () => {
-      conn.send({type:'joinRequest', name: nickname, from: myId});
+      connList[id] = {conn, initiator:true};
+      conn.send({type:'joinRequest', name:nickname});
     });
-
-    conn.on('data', data => handleData(id, data));
-
-    conn.on('close', () => {
-      appendChat('Você saiu da sala.', true);
-      resetUI();
-    });
+    conn.on('data', msg => handleData(id, msg));
   });
 }
 
 function handleData(peerId, msg) {
-  if (msg.type === 'joinRequest' && isAdmin) {
-    const accept = true;
-    connList[peerId].conn.send({type:'joinResponse', accepted: accept, assignedID: peerId, name: msg.name});
-    if (accept) {
-      broadcast({type:'system', text:`Usuário ${msg.name} entrou na sala`});
+  if(msg.type === 'joinRequest' && isAdmin) {
+    const accept = confirm(`${msg.name} quer entrar na sala. Aceitar?`);
+    connList[peerId].conn.send({type:'joinResponse', accepted: accept});
+    if(accept) {
       appendChat(`Sistema: Usuário ${msg.name} entrou na sala`, true);
+      broadcast({type:'system', text:`Usuário ${msg.name} entrou na sala`});
     }
-  } else if (msg.type === 'joinResponse' && !isAdmin) {
-    if (msg.accepted) {
+  } else if(msg.type === 'joinResponse' && !isAdmin) {
+    if(msg.accepted) {
       enterRoomUI();
       appendChat('Sistema: Você entrou na sala!', true);
     } else {
       alert('Entrada negada pelo administrador.');
       resetUI();
     }
-  } else if (msg.type === 'chat') {
+  } else if(msg.type === 'chat') {
     appendChat(`${msg.sender}: ${msg.text}`);
-  } else if (msg.type === 'system') {
+  } else if(msg.type === 'system') {
     appendChat(`Sistema: ${msg.text}`, true);
-  } else if (msg.type === 'mediaChange') {
+  } else if(msg.type === 'mediaChange') {
     mediaPlayer.src = msg.url;
     mediaPlayer.play();
   }
@@ -284,7 +270,6 @@ function enterRoomUI() {
   namePrompt.style.display = 'none';
   mainUI.style.display = 'flex';
 
-  // Importante: liberar controles do player e chat
   mediaPlayer.controls = true;
   mediaPlayer.style.pointerEvents = 'auto';
   chatInput.disabled = false;
@@ -310,12 +295,6 @@ function resetUI() {
 }
 
 // Botões tela inicial
-const createRoomBtn = document.getElementById('createRoom');
-const joinRoomBtn = document.getElementById('joinRoom');
-const enterRoomBtn = document.getElementById('enterRoom');
-
-let roomAction = '';
-
 createRoomBtn.onclick = () => {
   roomAction = 'create';
   menuSetup.style.display = 'none';
@@ -338,7 +317,7 @@ enterRoomBtn.onclick = () => {
   }
   nickname = name;
   if (roomAction === 'create') {
-    roomId = roomCodeInput.value.trim() || nickname + '-' + Math.floor(Math.random() * 1000);
+    roomId = roomCodeInput.value.trim() || genCode();
     createPeer(roomId);
   } else if (roomAction === 'join') {
     roomId = roomCodeInput.value.trim();
