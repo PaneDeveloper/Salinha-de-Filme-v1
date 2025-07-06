@@ -28,6 +28,55 @@
     #fileMenuModal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);display:none;justify-content:center;align-items:center;z-index:9999;}
     #fileMenuContent{background:#333;padding:1.5rem;border-radius:8px;min-width:320px;display:flex;flex-direction:column;gap:.75rem;}
     #fileMenuContent button{background:#444;color:#fff;padding:.75rem;border:none;border-radius:5px;cursor:pointer;font-size:1rem;}
+
+    /* Tela de espera */
+    #waitingScreen {
+      display:none;
+      position:fixed;
+      inset:0;
+      background:#121212cc;
+      color:#EEE;
+      font-size:1.3rem;
+      font-weight:bold;
+      flex-direction:column;
+      justify-content:center;
+      align-items:center;
+      z-index:10000;
+    }
+    #waitingScreen img {
+      width:64px;
+      height:64px;
+      margin-bottom:1rem;
+    }
+    #adminPrompt {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: #333;
+      padding: 0.8rem 1rem;
+      border-radius: 8px;
+      max-width: 300px;
+      z-index: 10001;
+      box-shadow: 0 0 10px #0008;
+      display: none;
+      flex-direction: column;
+      gap: 0.5rem;
+      color: #EEE;
+    }
+    #adminPrompt button {
+      background: #ff4500;
+      border: none;
+      color: #FFF;
+      padding: 0.4rem 0.8rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+    #adminPrompt .buttons {
+      display: flex;
+      justify-content: space-between;
+    }
   </style>
 </head>
 <body>
@@ -42,6 +91,20 @@
     <input id="nickname" placeholder="Seu nome de usuário"/>
     <button id="enterRoom" class="btn">Entrar</button>
   </div>
+  <!-- Tela de espera aguardando admin -->
+  <div id="waitingScreen" style="display:none;flex;">
+    <img src="https://media.tenor.com/On7kvXhzml4AAAAj/loading-load-gif.gif" alt="Loading"/>
+    Esperando o Administrador aceitar sua solicitação!
+  </div>
+  <!-- Prompt para admin aceitar entrada -->
+  <div id="adminPrompt">
+    <div><strong>Solicitação de entrada:</strong> <span id="pendingUser"></span></div>
+    <div class="buttons">
+      <button id="acceptUserBtn">Aceitar</button>
+      <button id="denyUserBtn">Negar</button>
+    </div>
+  </div>
+
   <!-- Main UI -->
   <div id="mainUI">
     <div id="playerArea">
@@ -59,6 +122,7 @@
       </div>
     </div>
   </div>
+
   <!-- Modal mídia -->
   <div id="fileMenuModal">
     <div id="fileMenuContent">
@@ -68,8 +132,8 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
-  <script>
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script>
   // Elementos
   const mediaPlayer     = document.getElementById('mediaPlayer');
   const fileMenuModal   = document.getElementById('fileMenuModal');
@@ -87,9 +151,15 @@
   const chatInput       = document.getElementById('chatInput');
   const sendChatBtn     = document.getElementById('sendChatBtn');
   const mainUI          = document.getElementById('mainUI');
+  const waitingScreen   = document.getElementById('waitingScreen');
+  const adminPrompt     = document.getElementById('adminPrompt');
+  const pendingUserSpan = document.getElementById('pendingUser');
+  const acceptUserBtn   = document.getElementById('acceptUserBtn');
+  const denyUserBtn     = document.getElementById('denyUserBtn');
 
   // Estado
-  let peer, connList = {}, roomID = '', isAdmin = false, myName = '', mediaStream = null;
+  let peer, connList = {}, roomID = '', isAdmin = false, myName = '', currentMedia = null;
+  let pendingRequests = {}; // para controlar pedidos pendentes (peerId -> {name, peerId})
 
   // Append chat
   function appendChat(msg){
@@ -107,12 +177,6 @@
   // Envia chat
   function sendChatMessage(text){
     if(!text.trim()) return;
-    if(text === '/help'){
-      appendChat('[Sistema] Enviando lista de comandos para você...');
-      appendChat('/help - Mostra esta lista de comandos');
-      appendChat('/code - Mostra o código da sala');
-      return; // só pro usuário que pediu
-    }
     appendChat(myName + ': ' + text);
     sendToAll({type:'chat', name:myName, msg:text});
   }
@@ -123,67 +187,70 @@
     if(e.target===fileMenuModal) fileMenuModal.style.display='none';
   };
 
-  // Broadcast via WebRTC
-  function broadcastStream(stream){
-    mediaStream = stream;
-    Object.values(connList).forEach(c=>{
-      if(c.call) c.call.close();
-      c.call = peer.call(c.conn.peer, stream);
-    });
-  }
-
-  // Escolher arquivo
-  selectFileBtn.onclick = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'video/*,audio/*';
-    input.onchange = () => {
-      const file = input.files[0];
-      if(!file) return;
-      const url = URL.createObjectURL(file);
-      mediaPlayer.srcObject = null;
-      mediaPlayer.src = url;
-      mediaPlayer.play();
-      // Transmitir stream para todos
-      const stream = mediaPlayer.captureStream();
-      broadcastStream(stream);
-      fileMenuModal.style.display = 'none';
+  // Upload arquivo
+  selectFileBtn.onclick = ()=>{
+    const inp = document.createElement('input');
+    inp.type='file'; inp.accept='video/*,audio/*';
+    inp.onchange=()=>{
+      const f=inp.files[0];
+      if(!f) return;
+      const url=URL.createObjectURL(f);
+      currentMedia={type:'media',url, time:0, paused:false};
+      mediaPlayer.srcObject=null; mediaPlayer.src=url; mediaPlayer.play();
+      sendToAll(currentMedia);
+      fileMenuModal.style.display='none';
     };
-    input.click();
+    inp.click();
   };
 
-  // Inserir link
-  insertLinkBtn.onclick = () => {
-    const url = prompt('Cole o link da mídia:');
+  // Link
+  insertLinkBtn.onclick=()=>{
+    const url=prompt('Cole o link da mídia:');
     if(!url) return;
-    mediaPlayer.srcObject = null;
-    mediaPlayer.src = url;
-    mediaPlayer.play();
-    // Transmitir stream para todos
-    const stream = mediaPlayer.captureStream();
-    broadcastStream(stream);
-    fileMenuModal.style.display = 'none';
+    currentMedia={type:'media',url,time:0,paused:false};
+    mediaPlayer.srcObject=null; mediaPlayer.src=url; mediaPlayer.play();
+    sendToAll(currentMedia);
+    fileMenuModal.style.display='none';
   };
 
-  // Compartilhar tela (desktop e android)
-  shareScreenBtn.onclick = async () => {
-    try {
-      const s = await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
-      mediaPlayer.srcObject = s;
-      mediaPlayer.play();
-      broadcastStream(s);
-      fileMenuModal.style.display = 'none';
-    } catch (err) {
-      alert('Erro ao compartilhar tela: ' + err);
+  // Transmitir tela
+  shareScreenBtn.onclick=async()=>{
+    try{
+      const stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
+      currentMedia={type:'stream'};
+      mediaPlayer.srcObject=stream; mediaPlayer.play();
+      Object.values(connList).forEach(c=>{
+        const call=peer.call(c.conn.peer, stream);
+        c.call=call;
+      });
+      fileMenuModal.style.display='none';
+    }catch(err){
+      alert('Erro: '+err);
     }
   };
 
-  // WebRTC chamadas recebidas
+  // Sincronizar play/pause do admin
+  mediaPlayer.onplay = ()=>{
+    if(isAdmin && currentMedia && currentMedia.type==='media'){
+      currentMedia.time=mediaPlayer.currentTime;
+      currentMedia.paused=false;
+      sendToAll(currentMedia);
+    }
+  };
+  mediaPlayer.onpause=()=>{
+    if(isAdmin && currentMedia && currentMedia.type==='media'){
+      currentMedia.time=mediaPlayer.currentTime;
+      currentMedia.paused=true;
+      sendToAll(currentMedia);
+    }
+  };
+
+  // Chamada WebRTC
   function setupCallHandlers(){
-    peer.on('call', call => {
-      call.answer(mediaStream || null);
-      call.on('stream', stream => {
-        mediaPlayer.srcObject = stream;
+    peer.on('call', call=>{
+      call.answer();
+      call.on('stream',stream=>{
+        mediaPlayer.srcObject=stream;
         mediaPlayer.play();
       });
     });
@@ -191,93 +258,208 @@
 
   // Criar sala
   function createRoom(code){
-    peer = new Peer(code);
-    isAdmin = true;
-    peer.on('open', () => {
-      appendChat('[Sistema] Sala criada: ' + code);
+    peer=new Peer(code);
+    isAdmin=true;
+    peer.on('open',()=>{
+      appendChat('[Sistema] Sala criada: '+code);
     });
-    peer.on('connection', conn => {
-      conn.on('data', data => {
-        if(data.type === 'chat'){
-          appendChat(data.name + ': ' + data.msg);
-        } else if(data.type === 'join'){
-          appendChat('[Sistema] ' + data.name + ' entrou na sala.');
-          // quando entra, o admin pode reenviar o stream atual para novo cliente?
-          // (mas peerjs não suporta diretamente re-call, só novo)
-          // neste caso, o stream já está "ao vivo", cliente recebe pelo call
+    peer.on('connection',conn=>{
+      conn.on('data',data=>{
+        if(data.type==='media'){
+          currentMedia=data;
+          mediaPlayer.srcObject=null;
+          mediaPlayer.src=data.url;
+          mediaPlayer.onloadedmetadata=()=>{
+            mediaPlayer.currentTime=data.time||0;
+            data.paused?mediaPlayer.pause():mediaPlayer.play();
+          };
+        }
+        if(data.type==='chat'){
+          appendChat(data.name+': '+data.msg);
+        }
+        if(data.type==='joinRequest'){
+          // novo pedido de entrada
+          pendingRequests[conn.peer] = { name: data.name, peerId: conn.peer, conn };
+          pendingUserSpan.textContent = data.name;
+          adminPrompt.style.display = 'flex';
+          appendChat(`[Sistema] Pedido de entrada de ${data.name}`);
+        }
+        if(data.type==='joinAccept'){
+          // usuario aceito pelo admin - cliente
+          waitingScreen.style.display = 'none';
+          namePrompt.style.display = 'flex';
+          chatInput.disabled = false;
+          sendChatBtn.disabled = false;
+        }
+        if(data.type==='joinDeny'){
+          alert('O administrador negou sua entrada na sala.');
+          waitingScreen.style.display = 'none';
+          menuSetup.style.display = 'flex';
+          chatInput.disabled = false;
+          sendChatBtn.disabled = false;
         }
       });
-      connList[conn.peer] = {conn};
+      connList[conn.peer]={conn};
     });
     setupCallHandlers();
   }
 
-  // Entrar na sala
-  function joinRoom(code){
-    peer = new Peer();
-    isAdmin = false;
-    peer.on('open', () => {
-      const conn = peer.connect(code);
-      conn.on('open', () => {
-        conn.send({type:'join', name:myName});
+  // Entrar em sala
+  function joinRoom(code, userName){
+    peer=new Peer();
+    isAdmin=false;
+    peer.on('open',()=>{
+      const conn=peer.connect(code);
+      conn.on('open',()=>{
+        // envia pedido de entrada ao admin
+        conn.send({type:'joinRequest', name: userName});
       });
-      conn.on('data', data => {
-        if(data.type === 'chat') appendChat(data.name + ': ' + data.msg);
-        if(data.type === 'join') appendChat('[Sistema] ' + data.name + ' entrou na sala.');
+      conn.on('data',data=>{
+        if(data.type==='media'){
+          mediaPlayer.srcObject=null;
+          mediaPlayer.src=data.url;
+          mediaPlayer.onloadedmetadata=()=>{
+            mediaPlayer.currentTime=data.time||0;
+            data.paused?mediaPlayer.pause():mediaPlayer.play();
+          };
+        }
+        if(data.type==='chat') appendChat(data.name+': '+data.msg);
+        if(data.type==='join') appendChat('[Sistema] '+data.name+' entrou na sala.');
+        if(data.type==='joinAccept'){
+          // recebido do admin, usuário liberado para entrar
+          waitingScreen.style.display = 'none';
+          namePrompt.style.display = 'none';
+          mainUI.style.display = 'flex';
+          chatInput.disabled = false;
+          sendChatBtn.disabled = false;
+          myName = userName;
+          sendChatMessage('Entrou na sala!');
+        }
+        if(data.type==='joinDeny'){
+          alert('O administrador negou sua entrada na sala.');
+          waitingScreen.style.display = 'none';
+          menuSetup.style.display = 'flex';
+          chatInput.disabled = false;
+          sendChatBtn.disabled = false;
+        }
       });
-      connList[code] = {conn};
+      connList[code]={conn};
     });
     setupCallHandlers();
   }
 
-  // Botões iniciais
-  createRoomBtn.onclick = () => {
-    roomID = Math.random().toString(36).slice(2,6).toUpperCase();
-    menuSetup.style.display = 'none';
-    namePrompt.style.display = 'flex';
-    enterRoomBtn.onclick = () => {
-      myName = nicknameInput.value.trim() || 'Usuário';
-      namePrompt.style.display = 'none';
-      mainUI.style.display = 'flex';
-      mediaPlayer.controls = true;
+  // Eventos botões criar sala
+  createRoomBtn.onclick=()=>{
+    roomID=Math.random().toString(36).slice(2,6).toUpperCase();
+    menuSetup.style.display='none';
+    namePrompt.style.display='flex';
+    enterRoomBtn.onclick=()=>{
+      myName=nicknameInput.value.trim()||'Usuário';
+      namePrompt.style.display='none';
+      mainUI.style.display='flex';
+      mediaPlayer.controls=true;
       createRoom(roomID);
     };
   };
-  joinRoomBtn.onclick = () => {
-    const code = document.getElementById('roomCode').value.trim().toUpperCase();
+
+  // Eventos botões entrar na sala
+  joinRoomBtn.onclick=()=>{
+    const code=document.getElementById('roomCode').value.trim().toUpperCase();
     if(!code) return alert('Informe o código!');
-    roomID = code;
+    // Mostrar tela de espera direto
+    waitingScreen.style.display = 'flex';
     menuSetup.style.display = 'none';
-    namePrompt.style.display = 'flex';
-    enterRoomBtn.onclick = () => {
-      myName = nicknameInput.value.trim() || 'Usuário';
-      namePrompt.style.display = 'none';
-      mainUI.style.display = 'flex';
-      mediaPlayer.controls = false;
-      // Bloqueio local para quem entrou (não host)
-      mediaPlayer.addEventListener('play', () => setTimeout(() => mediaPlayer.pause(), 50));
-      mediaPlayer.addEventListener('pause', () => mediaPlayer.play());
-      joinRoom(roomID);
-    };
+    chatInput.disabled = true;
+    sendChatBtn.disabled = true;
+
+    // Conectar ao peer para enviar pedido de entrada
+    // Criar conexão temporária peer para enviar joinRequest e receber resposta
+    // O nickname será perguntado APÓS a aprovação do admin
+    peer = new Peer();
+    peer.on('open', () => {
+      const conn = peer.connect(code);
+      conn.on('open', () => {
+        // Enviar joinRequest com nome vazio por enquanto
+        conn.send({ type: 'joinRequest', name: 'Solicitante' });
+      });
+      conn.on('data', data => {
+        if (data.type === 'joinAccept') {
+          // Admin aceitou, agora mostra o prompt de nome e cria conexão definitiva
+          waitingScreen.style.display = 'none';
+          namePrompt.style.display = 'flex';
+          adminPrompt.style.display = 'none';
+          chatInput.disabled = false;
+          sendChatBtn.disabled = false;
+          conn.close();
+          peer.destroy();
+
+          enterRoomBtn.onclick = () => {
+            const chosenName = nicknameInput.value.trim() || 'Usuário';
+            joinRoom(code, chosenName);
+            namePrompt.style.display = 'none';
+          };
+        }
+        if (data.type === 'joinDeny') {
+          alert('O administrador negou sua entrada na sala.');
+          waitingScreen.style.display = 'none';
+          menuSetup.style.display = 'flex';
+          adminPrompt.style.display = 'none';
+          chatInput.disabled = false;
+          sendChatBtn.disabled = false;
+          conn.close();
+          peer.destroy();
+        }
+      });
+      conn.on('error', () => {
+        alert('Erro ao conectar com a sala.');
+        waitingScreen.style.display = 'none';
+        menuSetup.style.display = 'flex';
+      });
+    });
   };
 
-  // Chat enviar
-  sendChatBtn.onclick = () => {
-    sendChatMessage(chatInput.value);
-    chatInput.value = '';
+  // Admin aceitar ou negar
+  acceptUserBtn.onclick = () => {
+    // pegar primeiro pedido pendente
+    const keys = Object.keys(pendingRequests);
+    if(keys.length === 0) return;
+    const peerId = keys[0];
+    const req = pendingRequests[peerId];
+    req.conn.send({ type: 'joinAccept' });
+    appendChat(`[Sistema] ${req.name} foi aceito na sala.`);
+    connList[peerId] = req; // manter conexão na lista
+    delete pendingRequests[peerId];
+    adminPrompt.style.display = 'none';
   };
-  chatInput.addEventListener('keydown', e => {
-    if(e.key === 'Enter' && !e.shiftKey){
+  denyUserBtn.onclick = () => {
+    const keys = Object.keys(pendingRequests);
+    if(keys.length === 0) return;
+    const peerId = keys[0];
+    const req = pendingRequests[peerId];
+    req.conn.send({ type: 'joinDeny' });
+    appendChat(`[Sistema] ${req.name} teve a entrada negada.`);
+    req.conn.close();
+    delete pendingRequests[peerId];
+    adminPrompt.style.display = 'none';
+  };
+
+  // Chat send
+  sendChatBtn.onclick=()=>{
+    sendChatMessage(chatInput.value);
+    chatInput.value='';
+  };
+  chatInput.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&!e.shiftKey){
       e.preventDefault();
       sendChatMessage(chatInput.value);
-      chatInput.value = '';
+      chatInput.value='';
     }
   });
 
   // Enter no nickname
-  nicknameInput.addEventListener('keydown', e => {
-    if(e.key === 'Enter') enterRoomBtn.click();
+  nicknameInput.addEventListener('keydown',e=>{
+    if(e.key==='Enter') enterRoomBtn.click();
   });
-  </script>
+</script>
 </body>
 </html>
