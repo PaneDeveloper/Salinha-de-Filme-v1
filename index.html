@@ -31,18 +31,17 @@
   </style>
 </head>
 <body>
-  <!-- Tela inicial: criar/entrar -->
   <div id="menuSetup">
     <input id="roomCode" placeholder="Código da sala (ex: A91J)" maxlength="4" style="text-transform:uppercase"/>
     <button id="createRoom" class="btn">Criar Sala</button>
     <button id="joinRoom"  class="btn">Entrar na Sala</button>
   </div>
-  <!-- Prompt de nickname -->
+
   <div id="namePrompt" style="display:none;">
     <input id="nickname" placeholder="Seu nome de usuário"/>
     <button id="enterRoom" class="btn">Entrar</button>
   </div>
-  <!-- Main UI -->
+
   <div id="mainUI">
     <div id="playerArea">
       <video id="mediaPlayer" controls autoplay></video>
@@ -59,7 +58,7 @@
       </div>
     </div>
   </div>
-  <!-- Modal mídia -->
+
   <div id="fileMenuModal">
     <div id="fileMenuContent">
       <button id="selectFileBtn">Escolher do dispositivo</button>
@@ -70,28 +69,25 @@
 
   <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
   <script>
-  // Elementos
-  const mediaPlayer     = document.getElementById('mediaPlayer');
-  const fileMenuModal   = document.getElementById('fileMenuModal');
-  const chooseMediaBtn  = document.getElementById('chooseMediaBtn');
-  const selectFileBtn   = document.getElementById('selectFileBtn');
-  const insertLinkBtn   = document.getElementById('insertLinkBtn');
-  const shareScreenBtn  = document.getElementById('shareScreenBtn');
-  const menuSetup       = document.getElementById('menuSetup');
-  const namePrompt      = document.getElementById('namePrompt');
-  const nicknameInput   = document.getElementById('nickname');
-  const enterRoomBtn    = document.getElementById('enterRoom');
-  const joinRoomBtn     = document.getElementById('joinRoom');
-  const createRoomBtn   = document.getElementById('createRoom');
-  const chatLog         = document.getElementById('chatLog');
-  const chatInput       = document.getElementById('chatInput');
-  const sendChatBtn     = document.getElementById('sendChatBtn');
-  const mainUI          = document.getElementById('mainUI');
+  const mediaPlayer = document.getElementById('mediaPlayer');
+  const fileMenuModal = document.getElementById('fileMenuModal');
+  const chooseMediaBtn = document.getElementById('chooseMediaBtn');
+  const selectFileBtn = document.getElementById('selectFileBtn');
+  const insertLinkBtn = document.getElementById('insertLinkBtn');
+  const shareScreenBtn = document.getElementById('shareScreenBtn');
+  const menuSetup = document.getElementById('menuSetup');
+  const namePrompt = document.getElementById('namePrompt');
+  const nicknameInput = document.getElementById('nickname');
+  const enterRoomBtn = document.getElementById('enterRoom');
+  const joinRoomBtn = document.getElementById('joinRoom');
+  const createRoomBtn = document.getElementById('createRoom');
+  const chatLog = document.getElementById('chatLog');
+  const chatInput = document.getElementById('chatInput');
+  const sendChatBtn = document.getElementById('sendChatBtn');
+  const mainUI = document.getElementById('mainUI');
 
-  // Estado
   let peer, connList = {}, roomID = '', isAdmin = false, myName = '', currentMedia = null;
 
-  // Append chat
   function appendChat(msg){
     const d = document.createElement('div');
     d.textContent = msg;
@@ -99,204 +95,202 @@
     chatLog.scrollTop = chatLog.scrollHeight;
   }
 
-  // Envia dados a todos
   function sendToAll(data){
-    Object.values(connList).forEach(c=>c.conn.send(data));
+    Object.values(connList).forEach(c => c.conn.send(data));
   }
 
-  // Envia chat
   function sendChatMessage(text){
     if(!text.trim()) return;
+    if(text.startsWith('/')){
+      const command = text.trim().toLowerCase();
+      if(command === '/code'){
+        appendChat('[Sistema] Código da sala: ' + roomID);
+      } else if(command === '/help'){
+        appendChat('[Ajuda] Comandos disponíveis:\n/code - Mostra código da sala\n/help - Lista de comandos');
+      } else {
+        appendChat('[Sistema] Comando não reconhecido: ' + command);
+      }
+      return;
+    }
     appendChat(myName + ': ' + text);
-    sendToAll({type:'chat', name:myName, msg:text});
+    sendToAll({ type: 'chat', name: myName, msg: text });
   }
 
-  // Processa comandos
-  function processCommand(cmd){
-    if(cmd==='​/code'){
-      appendChat('[Sistema] Código da sala: '+roomID);
-    }
-  }
-
-  // abrir/fechar modal
-  chooseMediaBtn.onclick = ()=> fileMenuModal.style.display='flex';
-  fileMenuModal.onclick = e=>{
-    if(e.target===fileMenuModal) fileMenuModal.style.display='none';
+  chooseMediaBtn.onclick = () => fileMenuModal.style.display = 'flex';
+  fileMenuModal.onclick = e => {
+    if (e.target === fileMenuModal) fileMenuModal.style.display = 'none';
   };
 
-  // Upload arquivo
-  selectFileBtn.onclick = ()=>{
-    const inp = document.createElement('input');
-    inp.type='file'; inp.accept='video/*,audio/*';
-    inp.onchange=()=>{
-      const f=inp.files[0];
-      if(!f) return;
-      const url=URL.createObjectURL(f);
-      currentMedia={type:'media',url, time:0, paused:false};
-      mediaPlayer.srcObject=null; mediaPlayer.src=url; mediaPlayer.play();
-      sendToAll(currentMedia);
-      fileMenuModal.style.display='none';
+  selectFileBtn.onclick = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'video/*,audio/*';
+    input.onchange = () => {
+      const file = input.files[0];
+      if (file) {
+        const url = URL.createObjectURL(file);
+        currentMedia = { type: 'media', url, time: 0, paused: false };
+        mediaPlayer.srcObject = null;
+        mediaPlayer.src = url;
+        mediaPlayer.play();
+        sendToAll(currentMedia);
+        fileMenuModal.style.display = 'none';
+      }
     };
-    inp.click();
+    input.click();
   };
 
-  // Link
-  insertLinkBtn.onclick=()=>{
-    const url=prompt('Cole o link da mídia:');
-    if(!url) return;
-    currentMedia={type:'media',url,time:0,paused:false};
-    mediaPlayer.srcObject=null; mediaPlayer.src=url; mediaPlayer.play();
+  insertLinkBtn.onclick = () => {
+    const url = prompt('Cole o link da mídia:');
+    if (!url) return;
+    currentMedia = { type: 'media', url, time: 0, paused: false };
+    mediaPlayer.srcObject = null;
+    mediaPlayer.src = url;
+    mediaPlayer.play();
     sendToAll(currentMedia);
-    fileMenuModal.style.display='none';
+    fileMenuModal.style.display = 'none';
   };
 
-  // Transmitir tela
-  shareScreenBtn.onclick=async()=>{
-    try{
-      const stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
-      currentMedia={type:'stream'}; myName; 
-      mediaPlayer.srcObject=stream; mediaPlayer.play();
-      Object.values(connList).forEach(c=>{
-        const call=peer.call(c.conn.peer, stream);
-        c.call=call;
+  shareScreenBtn.onclick = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      currentMedia = { type: 'stream' };
+      mediaPlayer.srcObject = stream;
+      mediaPlayer.play();
+      Object.values(connList).forEach(c => {
+        const call = peer.call(c.conn.peer, stream);
+        c.call = call;
       });
-      fileMenuModal.style.display='none';
-    }catch(err){
-      alert('Erro: '+err);
+      fileMenuModal.style.display = 'none';
+    } catch (err) {
+      alert('Erro: ' + err);
     }
   };
 
-  // Sincronizar play/pause do admin
-  mediaPlayer.onplay = ()=>{
-    if(isAdmin && currentMedia){
-      currentMedia.time=mediaPlayer.currentTime;
-      currentMedia.paused=false;
-      sendToAll(currentMedia);
-    }
-  };
-  mediaPlayer.onpause=()=>{
-    if(isAdmin && currentMedia){
-      currentMedia.time=mediaPlayer.currentTime;
-      currentMedia.paused=true;
+  mediaPlayer.onplay = () => {
+    if (isAdmin && currentMedia && currentMedia.type === 'media') {
+      currentMedia.time = mediaPlayer.currentTime;
+      currentMedia.paused = false;
       sendToAll(currentMedia);
     }
   };
 
-  // Chamada WebRTC
-  function setupCallHandlers(){
-    peer.on('call', call=>{
+  mediaPlayer.onpause = () => {
+    if (isAdmin && currentMedia && currentMedia.type === 'media') {
+      currentMedia.time = mediaPlayer.currentTime;
+      currentMedia.paused = true;
+      sendToAll(currentMedia);
+    }
+  };
+
+  function setupCallHandlers() {
+    peer.on('call', call => {
       call.answer();
-      call.on('stream',stream=>{
-        mediaPlayer.srcObject=stream;
+      call.on('stream', stream => {
+        mediaPlayer.srcObject = stream;
         mediaPlayer.play();
       });
     });
   }
 
-  // Criar sala
-  function createRoom(code){
-    peer=new Peer(code);
-    isAdmin=true;
-    peer.on('open',()=>{
-      appendChat('[Sistema] Sala criada: '+code);
+  function createRoom(code) {
+    peer = new Peer(code);
+    isAdmin = true;
+    peer.on('open', () => {
+      appendChat('[Sistema] Sala criada: ' + code);
     });
-    peer.on('connection',conn=>{
-      conn.on('data',data=>{
-        if(data.type==='media'){
-          currentMedia=data;
-          mediaPlayer.srcObject=null;
-          mediaPlayer.src=data.url;
-          mediaPlayer.onloadedmetadata=()=>{
-            mediaPlayer.currentTime=data.time||0;
-            data.paused?mediaPlayer.pause():mediaPlayer.play();
+    peer.on('connection', conn => {
+      conn.on('data', data => {
+        if (data.type === 'media') {
+          currentMedia = data;
+          mediaPlayer.srcObject = null;
+          mediaPlayer.src = data.url;
+          mediaPlayer.onloadedmetadata = () => {
+            mediaPlayer.currentTime = data.time || 0;
+            data.paused ? mediaPlayer.pause() : mediaPlayer.play();
           };
-        }
-        if(data.type==='chat'){
-          appendChat(data.name+': '+data.msg);
-        }
-        if(data.type==='join'){
-          appendChat('[Sistema] '+data.name+' entrou na sala.');
-          // reenvia estado atual
-          if(currentMedia) conn.send(currentMedia);
+        } else if (data.type === 'chat') {
+          appendChat(data.name + ': ' + data.msg);
+        } else if (data.type === 'join') {
+          appendChat('[Sistema] ' + data.name + ' entrou na sala.');
+          if (currentMedia) conn.send(currentMedia);
         }
       });
-      connList[conn.peer]={conn};
+      connList[conn.peer] = { conn };
     });
     setupCallHandlers();
   }
 
-  // Entrar em sala
-  function joinRoom(code){
-    peer=new Peer();
-    isAdmin=false;
-    peer.on('open',()=>{
-      const conn=peer.connect(code);
-      conn.on('open',()=>{
-        conn.send({type:'join',name:myName});
+  function joinRoom(code) {
+    peer = new Peer();
+    isAdmin = false;
+    peer.on('open', () => {
+      const conn = peer.connect(code);
+      conn.on('open', () => {
+        conn.send({ type: 'join', name: myName });
       });
-      conn.on('data',data=>{
-        if(data.type==='media'){
-          mediaPlayer.srcObject=null;
-          mediaPlayer.src=data.url;
-          mediaPlayer.onloadedmetadata=()=>{
-            mediaPlayer.currentTime=data.time||0;
-            data.paused?mediaPlayer.pause():mediaPlayer.play();
+      conn.on('data', data => {
+        if (data.type === 'media') {
+          mediaPlayer.srcObject = null;
+          mediaPlayer.src = data.url;
+          mediaPlayer.onloadedmetadata = () => {
+            mediaPlayer.currentTime = data.time || 0;
+            data.paused ? mediaPlayer.pause() : mediaPlayer.play();
           };
+        } else if (data.type === 'chat') {
+          appendChat(data.name + ': ' + data.msg);
+        } else if (data.type === 'join') {
+          appendChat('[Sistema] ' + data.name + ' entrou na sala.');
         }
-        if(data.type==='chat') appendChat(data.name+': '+data.msg);
-        if(data.type==='join') appendChat('[Sistema] '+data.name+' entrou na sala.');
       });
-      connList[code]={conn};
+      connList[code] = { conn };
     });
     setupCallHandlers();
   }
 
-  // Botões iniciais
-  createRoomBtn.onclick=()=>{
-    roomID=Math.random().toString(36).slice(2,6).toUpperCase();
-    menuSetup.style.display='none';
-    namePrompt.style.display='flex';
-    enterRoomBtn.onclick=()=>{
-      myName=nicknameInput.value.trim()||'Usuário';
-      namePrompt.style.display='none';
-      mainUI.style.display='flex';
-      mediaPlayer.controls=true;
+  createRoomBtn.onclick = () => {
+    roomID = Math.random().toString(36).substring(2, 6).toUpperCase();
+    menuSetup.style.display = 'none';
+    namePrompt.style.display = 'flex';
+    enterRoomBtn.onclick = () => {
+      myName = nicknameInput.value.trim() || 'Usuário';
+      namePrompt.style.display = 'none';
+      mainUI.style.display = 'flex';
       createRoom(roomID);
     };
   };
-  joinRoomBtn.onclick=()=>{
-    const code=document.getElementById('roomCode').value.trim().toUpperCase();
-    if(!code) return alert('Informe o código!');
-    roomID=code;
-    menuSetup.style.display='none';
-    namePrompt.style.display='flex';
-    enterRoomBtn.onclick=()=>{
-      myName=nicknameInput.value.trim()||'Usuário';
-      namePrompt.style.display='none';
-      mainUI.style.display='flex';
-      mediaPlayer.controls=false;
-      // bloqueio local
-      mediaPlayer.addEventListener('play',()=>setTimeout(()=>mediaPlayer.pause(),50));
-      mediaPlayer.addEventListener('pause',()=>mediaPlayer.play());
+
+  joinRoomBtn.onclick = () => {
+    const code = document.getElementById('roomCode').value.trim().toUpperCase();
+    if (!code) return alert('Informe o código!');
+    roomID = code;
+    menuSetup.style.display = 'none';
+    namePrompt.style.display = 'flex';
+    enterRoomBtn.onclick = () => {
+      myName = nicknameInput.value.trim() || 'Usuário';
+      namePrompt.style.display = 'none';
+      mainUI.style.display = 'flex';
+      mediaPlayer.controls = false;
+      mediaPlayer.addEventListener('play', () => setTimeout(() => mediaPlayer.pause(), 50));
+      mediaPlayer.addEventListener('pause', () => mediaPlayer.play());
       joinRoom(roomID);
     };
   };
 
-  // Chat send
-  sendChatBtn.onclick=()=>{
+  sendChatBtn.onclick = () => {
     sendChatMessage(chatInput.value);
-    chatInput.value='';
+    chatInput.value = '';
   };
-  chatInput.addEventListener('keydown',e=>{
-    if(e.key==='Enter'&&!e.shiftKey){
+  chatInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendChatMessage(chatInput.value);
-      chatInput.value='';
+      chatInput.value = '';
     }
   });
-  // Enter no nickname
-  nicknameInput.addEventListener('keydown',e=>{
-    if(e.key==='Enter') enterRoomBtn.click();
+
+  nicknameInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') enterRoomBtn.click();
   });
   </script>
 </body>
