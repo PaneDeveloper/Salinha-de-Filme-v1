@@ -1,127 +1,65 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Chat + Player</title>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#121212;color:#EEE;font-family:Arial,sans-serif;display:flex;flex-direction:column;height:100vh;}
-
-  #mainUI {
-    max-width: 1200px;
-    margin: 0 auto;
-    box-sizing: border-box;
-    display: none;
-    flex-direction: row;
-    flex: 1;
-  }
-
-  @media (min-width: 1600px) {
-    #mainUI {
-      max-width: 900px;
-      margin: 2rem auto;
-      border: 1px solid #444;
-      border-radius: 10px;
-      box-shadow: 0 0 20px #0008;
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Chat + Player</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#121212;color:#EEE;font-family:Arial,sans-serif;display:flex;flex-direction:column;height:100vh;}
+    #mainUI{max-width:1200px;margin:0 auto;display:none;flex:1;flex-direction:row;}
+    @media (min-width:1600px){
+      #mainUI{max-width:900px;margin:2rem auto;border:1px solid #444;border-radius:10px;box-shadow:0 0 20px #0008;}
     }
-  }
-
-  @media (max-width: 768px) {
-    #mainUI {
-      flex-direction: column !important;
-      width: 100% !important;
-      height: 100vh !important;
-      margin: 0 !important;
-      padding: 0.5rem !important;
+    @media (max-width:768px){
+      #mainUI{display:flex!important;flex-direction:column!important;width:100%!important;height:100vh!important;margin:0!important;padding:.5rem!important;}
+      #playerArea{flex:none!important;width:100%!important;max-width:100%!important;height:auto!important;}
+      #chatArea{flex:none!important;width:100%!important;height:150px!important;border-left:none!important;border-top:1px solid #333!important;margin-top:.5rem!important;display:flex!important;}
     }
-    #playerArea {
-      flex: none !important;
-      width: 100% !important;
-      max-width: 100% !important;
-      height: auto !important;
-    }
-    #chatArea {
-      flex: none !important;
-      width: 100% !important;
-      height: 150px !important;
-      border-left: none !important;
-      border-top: 1px solid #333 !important;
-      margin-top: 0.5rem !important;
-      display: flex !important;
-    }
-  }
-
-  #playerArea{flex:2;background:#222;display:flex;flex-direction:column;align-items:center;padding:1rem;position:relative;}
-  video{width:100%;max-width:800px;border-radius:6px;background:#000;z-index:1;position:relative;}
-  #controls{margin:1rem;display:flex;gap:.5rem;flex-wrap:wrap;z-index:1;position:relative;}
-  .btn{background:#ff4500;border:none;color:#FFF;padding:.5rem 1rem;border-radius:5px;cursor:pointer;z-index:1;}
-  #chatArea{flex:1;display:flex;flex-direction:column;background:#1f1f1f;border-left:1px solid #333;}
-  #chatLog{flex:1;overflow-y:auto;padding:0.5rem;}
-  #chatInputArea{padding:0.5rem;display:flex;gap:0.5rem;}
-  #chatInput{flex:1;padding:.5rem;border-radius:4px;border:none;background:#222;color:#EEE;}
-  #menuSetup,#namePrompt{padding:1rem;display:flex;flex-direction:column;gap:.5rem;align-items:center;}
-  #sendChatBtn{display:none;}
-
-  #fileMenuModal {
-    position: fixed;
-    top:0; left:0; right:0; bottom:0;
-    background: rgba(0,0,0,0.75);
-    display: none;
-    justify-content: center;
-    align-items: center;
-    z-index: 9999;
-  }
-  #fileMenuContent {
-    background: #333;
-    padding: 1.5rem;
-    border-radius: 8px;
-    min-width: 320px;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    position: relative;
-  }
-  #fileMenuContent button {
-    background: #444;
-    color: white;
-    padding: 0.75rem;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 1rem;
-  }
-</style>
+    #playerArea{flex:2;background:#222;display:flex;flex-direction:column;align-items:center;padding:1rem;position:relative;}
+    video{width:100%;max-width:800px;border-radius:6px;background:#000;position:relative;z-index:1;}
+    #controls{margin:1rem;display:flex;gap:.5rem;flex-wrap:wrap;position:relative;z-index:1;}
+    .btn{background:#ff4500;border:none;color:#FFF;padding:.5rem 1rem;border-radius:5px;cursor:pointer;z-index:1;}
+    #chatArea{flex:1;display:flex;flex-direction:column;background:#1f1f1f;border-left:1px solid #333;}
+    #chatLog{flex:1;overflow-y:auto;padding:.5rem;}
+    #chatInputArea{padding:.5rem;display:flex;gap:.5rem;}
+    #chatInput{flex:1;padding:.5rem;border-radius:4px;border:none;background:#222;color:#EEE;}
+    #menuSetup,#namePrompt{padding:1rem;display:flex;flex-direction:column;gap:.5rem;align-items:center;}
+    #fileMenuModal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);display:none;justify-content:center;align-items:center;z-index:9999;}
+    #fileMenuContent{background:#333;padding:1.5rem;border-radius:8px;min-width:320px;display:flex;flex-direction:column;gap:.75rem;}
+    #fileMenuContent button{background:#444;color:#fff;padding:.75rem;border:none;border-radius:5px;cursor:pointer;font-size:1rem;}
+  </style>
 </head>
 <body>
+  <!-- Tela inicial: criar/entrar -->
   <div id="menuSetup">
-    <input id="roomCode" placeholder="Código da sala (ex: A91J)" maxlength="4" style="text-transform: uppercase;"/>
+    <input id="roomCode" placeholder="Código da sala (ex: A91J)" maxlength="4" style="text-transform:uppercase"/>
     <button id="createRoom" class="btn">Criar Sala</button>
-    <button id="joinRoom" class="btn">Entrar na Sala</button>
+    <button id="joinRoom"  class="btn">Entrar na Sala</button>
   </div>
-
+  <!-- Prompt de nickname -->
   <div id="namePrompt" style="display:none;">
     <input id="nickname" placeholder="Seu nome de usuário"/>
     <button id="enterRoom" class="btn">Entrar</button>
   </div>
-
+  <!-- Main UI -->
   <div id="mainUI">
     <div id="playerArea">
       <video id="mediaPlayer" controls autoplay></video>
       <div id="controls">
-        <button id="chooseMediaBtn" class="btn">Escolher Arquivo/Link/Tela</button>
-        <button id="showPlaylistBtn" class="btn">📃 Playlist</button>
+        <button id="chooseMediaBtn"   class="btn">Escolher Arquivo/Link/Tela</button>
+        <button id="showPlaylistBtn"  class="btn">📃 Playlist</button>
       </div>
     </div>
     <div id="chatArea">
       <div id="chatLog"></div>
       <div id="chatInputArea">
-        <input id="chatInput" placeholder="Digite sua mensagem" autocomplete="off"/>
+        <input  id="chatInput" placeholder="Digite sua mensagem" autocomplete="off"/>
         <button id="sendChatBtn" class="btn">Enviar</button>
       </div>
     </div>
   </div>
-
+  <!-- Modal mídia -->
   <div id="fileMenuModal">
     <div id="fileMenuContent">
       <button id="selectFileBtn">Escolher do dispositivo</button>
@@ -130,208 +68,236 @@
     </div>
   </div>
 
-<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
-<script>
-const mediaPlayer = document.getElementById('mediaPlayer');
-const fileMenuModal = document.getElementById('fileMenuModal');
-const fileMenuContent = document.getElementById('fileMenuContent');
-const chooseMediaBtn = document.getElementById('chooseMediaBtn');
-const selectFileBtn = document.getElementById('selectFileBtn');
-const insertLinkBtn = document.getElementById('insertLinkBtn');
-const shareScreenBtn = document.getElementById('shareScreenBtn');
-const nicknameInput = document.getElementById('nickname');
-const namePrompt = document.getElementById('namePrompt');
-const menuSetup = document.getElementById('menuSetup');
-const enterRoomBtn = document.getElementById('enterRoom');
-const chatLog = document.getElementById('chatLog');
-const chatInput = document.getElementById('chatInput');
-const sendChatBtn = document.getElementById('sendChatBtn');
+  <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+  <script>
+  // Elementos
+  const mediaPlayer     = document.getElementById('mediaPlayer');
+  const fileMenuModal   = document.getElementById('fileMenuModal');
+  const chooseMediaBtn  = document.getElementById('chooseMediaBtn');
+  const selectFileBtn   = document.getElementById('selectFileBtn');
+  const insertLinkBtn   = document.getElementById('insertLinkBtn');
+  const shareScreenBtn  = document.getElementById('shareScreenBtn');
+  const menuSetup       = document.getElementById('menuSetup');
+  const namePrompt      = document.getElementById('namePrompt');
+  const nicknameInput   = document.getElementById('nickname');
+  const enterRoomBtn    = document.getElementById('enterRoom');
+  const joinRoomBtn     = document.getElementById('joinRoom');
+  const createRoomBtn   = document.getElementById('createRoom');
+  const chatLog         = document.getElementById('chatLog');
+  const chatInput       = document.getElementById('chatInput');
+  const sendChatBtn     = document.getElementById('sendChatBtn');
+  const mainUI          = document.getElementById('mainUI');
 
-let peer, myStream = null;
-let connList = {};
-let roomID = '';
-let isAdmin = false;
-let myName = '';
+  // Estado
+  let peer, connList = {}, roomID = '', isAdmin = false, myName = '', currentMedia = null;
 
-// Função para mostrar mensagem no chat
-function appendChat(msg) {
-  const d = document.createElement('div');
-  d.textContent = msg;
-  chatLog.appendChild(d);
-  chatLog.scrollTop = chatLog.scrollHeight;
-}
+  // Append chat
+  function appendChat(msg){
+    const d = document.createElement('div');
+    d.textContent = msg;
+    chatLog.appendChild(d);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
 
-// Função para enviar mensagem no chat para todos
-function sendChatMessage(message) {
-  if (!message.trim()) return;
-  appendChat(`${myName}: ${message}`);
-  Object.values(connList).forEach(c => c.conn.send({ type: 'chat', name: myName, msg: message }));
-}
+  // Envia dados a todos
+  function sendToAll(data){
+    Object.values(connList).forEach(c=>c.conn.send(data));
+  }
 
-// Botão para abrir menu de mídia
-chooseMediaBtn.onclick = () => fileMenuModal.style.display = 'flex';
-// Fecha menu de mídia clicando fora da caixa
-fileMenuModal.onclick = e => {
-  if (e.target === fileMenuModal) fileMenuModal.style.display = 'none';
-};
+  // Envia chat
+  function sendChatMessage(text){
+    if(!text.trim()) return;
+    appendChat(myName + ': ' + text);
+    sendToAll({type:'chat', name:myName, msg:text});
+  }
 
-// Escolher arquivo local
-selectFileBtn.onclick = () => {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'video/*,audio/*';
-  input.onchange = () => {
-    const file = input.files[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      sendMediaToAll({ type: 'media', url });
-      mediaPlayer.srcObject = null;
-      mediaPlayer.src = url;
-      mediaPlayer.play();
-      fileMenuModal.style.display = 'none';
+  // Processa comandos
+  function processCommand(cmd){
+    if(cmd==='​/code'){
+      appendChat('[Sistema] Código da sala: '+roomID);
+    }
+  }
+
+  // abrir/fechar modal
+  chooseMediaBtn.onclick = ()=> fileMenuModal.style.display='flex';
+  fileMenuModal.onclick = e=>{
+    if(e.target===fileMenuModal) fileMenuModal.style.display='none';
+  };
+
+  // Upload arquivo
+  selectFileBtn.onclick = ()=>{
+    const inp = document.createElement('input');
+    inp.type='file'; inp.accept='video/*,audio/*';
+    inp.onchange=()=>{
+      const f=inp.files[0];
+      if(!f) return;
+      const url=URL.createObjectURL(f);
+      currentMedia={type:'media',url, time:0, paused:false};
+      mediaPlayer.srcObject=null; mediaPlayer.src=url; mediaPlayer.play();
+      sendToAll(currentMedia);
+      fileMenuModal.style.display='none';
+    };
+    inp.click();
+  };
+
+  // Link
+  insertLinkBtn.onclick=()=>{
+    const url=prompt('Cole o link da mídia:');
+    if(!url) return;
+    currentMedia={type:'media',url,time:0,paused:false};
+    mediaPlayer.srcObject=null; mediaPlayer.src=url; mediaPlayer.play();
+    sendToAll(currentMedia);
+    fileMenuModal.style.display='none';
+  };
+
+  // Transmitir tela
+  shareScreenBtn.onclick=async()=>{
+    try{
+      const stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
+      currentMedia={type:'stream'}; myName; 
+      mediaPlayer.srcObject=stream; mediaPlayer.play();
+      Object.values(connList).forEach(c=>{
+        const call=peer.call(c.conn.peer, stream);
+        c.call=call;
+      });
+      fileMenuModal.style.display='none';
+    }catch(err){
+      alert('Erro: '+err);
     }
   };
-  input.click();
-};
 
-// Inserir link manual
-insertLinkBtn.onclick = () => {
-  const url = prompt('Cole o link da mídia:');
-  if (url) {
-    sendMediaToAll({ type: 'media', url });
-    mediaPlayer.srcObject = null;
-    mediaPlayer.src = url;
-    mediaPlayer.play();
-    fileMenuModal.style.display = 'none';
-  }
-};
-
-// Compartilhar tela
-shareScreenBtn.onclick = async () => {
-  try {
-    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-    myStream = stream;
-    mediaPlayer.srcObject = stream;
-    mediaPlayer.play();
-    for (let id in connList) {
-      const call = peer.call(id, stream);
-      connList[id].call = call;
+  // Sincronizar play/pause do admin
+  mediaPlayer.onplay = ()=>{
+    if(isAdmin && currentMedia){
+      currentMedia.time=mediaPlayer.currentTime;
+      currentMedia.paused=false;
+      sendToAll(currentMedia);
     }
-    fileMenuModal.style.display = 'none';
-  } catch (err) {
-    alert('Erro ao compartilhar a tela: ' + err);
-  }
-};
+  };
+  mediaPlayer.onpause=()=>{
+    if(isAdmin && currentMedia){
+      currentMedia.time=mediaPlayer.currentTime;
+      currentMedia.paused=true;
+      sendToAll(currentMedia);
+    }
+  };
 
-// Envia mídia para todos conectados
-function sendMediaToAll(data) {
-  Object.values(connList).forEach(c => c.conn.send(data));
-}
-
-// Configura tratamento de chamadas
-function setupCallHandlers() {
-  peer.on('call', call => {
-    call.answer();
-    call.on('stream', stream => {
-      mediaPlayer.srcObject = stream;
-      mediaPlayer.play();
-    });
-  });
-}
-
-// Criar sala e configurar peer
-function createRoom(code) {
-  peer = new Peer(code);
-  isAdmin = true;
-  peer.on('open', () => {
-    appendChat('[Sistema] Sala criada: ' + code);
-  });
-  peer.on('connection', conn => {
-    conn.on('data', data => {
-      if (data.type === 'media') {
-        mediaPlayer.srcObject = null;
-        mediaPlayer.src = data.url;
+  // Chamada WebRTC
+  function setupCallHandlers(){
+    peer.on('call', call=>{
+      call.answer();
+      call.on('stream',stream=>{
+        mediaPlayer.srcObject=stream;
         mediaPlayer.play();
-        sendMediaToAll(data);
-      } else if (data.type === 'chat') {
-        appendChat(`${data.name}: ${data.msg}`);
-      } else if (data.type === 'join') {
-        appendChat(`[Sistema] ${data.name} entrou na sala.`);
-      }
+      });
     });
-    connList[conn.peer] = { conn };
-  });
-  setupCallHandlers();
-}
+  }
 
-// Criar sala: mostrar prompt de nome, depois criar
-document.getElementById('createRoom').onclick = () => {
-  roomID = (Math.random().toString(36).substring(2, 6).toUpperCase());
-  menuSetup.style.display = 'none';
-  namePrompt.style.display = 'flex';
-  enterRoomBtn.onclick = () => {
-    myName = nicknameInput.value.trim() || 'Usuário';
-    namePrompt.style.display = 'none';
-    document.getElementById('mainUI').style.display = 'flex';
-    createRoom(roomID);
+  // Criar sala
+  function createRoom(code){
+    peer=new Peer(code);
+    isAdmin=true;
+    peer.on('open',()=>{
+      appendChat('[Sistema] Sala criada: '+code);
+    });
+    peer.on('connection',conn=>{
+      conn.on('data',data=>{
+        if(data.type==='media'){
+          currentMedia=data;
+          mediaPlayer.srcObject=null;
+          mediaPlayer.src=data.url;
+          mediaPlayer.onloadedmetadata=()=>{
+            mediaPlayer.currentTime=data.time||0;
+            data.paused?mediaPlayer.pause():mediaPlayer.play();
+          };
+        }
+        if(data.type==='chat'){
+          appendChat(data.name+': '+data.msg);
+        }
+        if(data.type==='join'){
+          appendChat('[Sistema] '+data.name+' entrou na sala.');
+          // reenvia estado atual
+          if(currentMedia) conn.send(currentMedia);
+        }
+      });
+      connList[conn.peer]={conn};
+    });
+    setupCallHandlers();
+  }
+
+  // Entrar em sala
+  function joinRoom(code){
+    peer=new Peer();
+    isAdmin=false;
+    peer.on('open',()=>{
+      const conn=peer.connect(code);
+      conn.on('open',()=>{
+        conn.send({type:'join',name:myName});
+      });
+      conn.on('data',data=>{
+        if(data.type==='media'){
+          mediaPlayer.srcObject=null;
+          mediaPlayer.src=data.url;
+          mediaPlayer.onloadedmetadata=()=>{
+            mediaPlayer.currentTime=data.time||0;
+            data.paused?mediaPlayer.pause():mediaPlayer.play();
+          };
+        }
+        if(data.type==='chat') appendChat(data.name+': '+data.msg);
+        if(data.type==='join') appendChat('[Sistema] '+data.name+' entrou na sala.');
+      });
+      connList[code]={conn};
+    });
+    setupCallHandlers();
+  }
+
+  // Botões iniciais
+  createRoomBtn.onclick=()=>{
+    roomID=Math.random().toString(36).slice(2,6).toUpperCase();
+    menuSetup.style.display='none';
+    namePrompt.style.display='flex';
+    enterRoomBtn.onclick=()=>{
+      myName=nicknameInput.value.trim()||'Usuário';
+      namePrompt.style.display='none';
+      mainUI.style.display='flex';
+      mediaPlayer.controls=true;
+      createRoom(roomID);
+    };
   };
-};
+  joinRoomBtn.onclick=()=>{
+    const code=document.getElementById('roomCode').value.trim().toUpperCase();
+    if(!code) return alert('Informe o código!');
+    roomID=code;
+    menuSetup.style.display='none';
+    namePrompt.style.display='flex';
+    enterRoomBtn.onclick=()=>{
+      myName=nicknameInput.value.trim()||'Usuário';
+      namePrompt.style.display='none';
+      mainUI.style.display='flex';
+      mediaPlayer.controls=false;
+      // bloqueio local
+      mediaPlayer.addEventListener('play',()=>setTimeout(()=>mediaPlayer.pause(),50));
+      mediaPlayer.addEventListener('pause',()=>mediaPlayer.play());
+      joinRoom(roomID);
+    };
+  };
 
-// Enviar mensagem com botão enviar
-sendChatBtn.onclick = () => {
-  sendChatMessage(chatInput.value);
-  chatInput.value = '';
-};
-
-// Enviar mensagem com tecla enter (corrigido para funcionar no PC e celular)
-chatInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
+  // Chat send
+  sendChatBtn.onclick=()=>{
     sendChatMessage(chatInput.value);
-    chatInput.value = '';
-  }
-});
-
-// Entrar na sala já criada pelo código
-document.getElementById('joinRoom').onclick = () => {
-  const code = document.getElementById('roomCode').value.trim().toUpperCase();
-  if (!code) return alert('Informe o código da sala!');
-  roomID = code;
-  menuSetup.style.display = 'none';
-  namePrompt.style.display = 'flex';
-  enterRoomBtn.onclick = () => {
-    myName = nicknameInput.value.trim() || 'Usuário';
-    namePrompt.style.display = 'none';
-    document.getElementById('mainUI').style.display = 'flex';
-    joinRoom(roomID);
+    chatInput.value='';
   };
-};
-
-// Função para entrar numa sala já criada
-function joinRoom(code) {
-  peer = new Peer();
-  isAdmin = false;
-  peer.on('open', () => {
-    const conn = peer.connect(code);
-    conn.on('open', () => {
-      conn.send({ type: 'join', name: myName });
-      appendChat(`[Sistema] Entrando na sala: ${code}`);
-    });
-    conn.on('data', data => {
-      if (data.type === 'media') {
-        mediaPlayer.srcObject = null;
-        mediaPlayer.src = data.url;
-        mediaPlayer.play();
-      } else if (data.type === 'chat') {
-        appendChat(`${data.name}: ${data.msg}`);
-      } else if (data.type === 'join') {
-        appendChat(`[Sistema] ${data.name} entrou na sala.`);
-      }
-    });
-    connList[code] = { conn };
+  chatInput.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&!e.shiftKey){
+      e.preventDefault();
+      sendChatMessage(chatInput.value);
+      chatInput.value='';
+    }
   });
-  setupCallHandlers();
-}
-</script>
+  // Enter no nickname
+  nicknameInput.addEventListener('keydown',e=>{
+    if(e.key==='Enter') enterRoomBtn.click();
+  });
+  </script>
 </body>
 </html>
