@@ -11,11 +11,7 @@
     #menuSetup,#namePrompt,#waitingApproval{padding:1rem;display:flex;flex-direction:column;gap:.5rem;align-items:center;text-align:center;}
     #mainUI{display:none;flex:1;flex-direction:row;max-width:1200px;margin:0 auto;position:relative;}
     @media(min-width:1600px){#mainUI{max-width:900px;margin:2rem auto;border:1px solid #444;border-radius:10px;box-shadow:0 0 20px #0008;}}
-    @media(max-width:768px){
-      #mainUI{flex-direction:column!important;width:100%!important;height:100vh!important;padding:.5rem!important;}
-      #playerArea,#chatArea{width:100%!important;}
-      #chatArea{height:150px!important;border-left:none!important;border-top:1px solid #333!important;margin-top:.5rem!important;}
-    }
+    @media(max-width:768px){#mainUI{flex-direction:column!important;width:100%!important;height:100vh!important;padding:.5rem!important;} #playerArea,#chatArea{width:100%!important;} #chatArea{height:150px!important;border-left:none!important;border-top:1px solid #333!important;margin-top:.5rem!important;}}
     #playerArea{flex:2;background:#222;display:flex;flex-direction:column;align-items:center;padding:1rem;position:relative;}
     video{width:100%;max-width:800px;border-radius:6px;background:#000;position:relative;z-index:1;}
     #controls{margin:1rem;display:flex;gap:.5rem;flex-wrap:wrap;position:relative;z-index:1;}
@@ -42,71 +38,86 @@
   </style>
 </head>
 <body>
-  <!-- HTML COMPLETO FOI OMITIDO AQUI PARA FOCO NA ATUALIZAÇÃO. -->
+  <div id="controls">
+    <button id="chooseMediaBtn" class="btn">Escolher Arquivo/Link/Tela</button>
+    <button id="showPlaylistBtn" class="btn">📃 Playlist</button>
+    <button id="showParticipantsBtn" class="btn">👥 Participantes</button>
+  </div>
 
-  <!-- Modal Punição -->
-  <div id="punishModal" class="modal-menu">
-    <h3>Aplicar ação a <span id="punishUserName"></span></h3>
-    <div>
-      <div class="option" data-time="5m">5 minutos</div>
-      <div class="option" data-time="10m">10 minutos</div>
-      <div class="option" data-time="30m">30 minutos</div>
-      <div class="option" data-time="50m">50 minutos</div>
-      <div class="option" data-time="1h">1 hora</div>
-      <div class="option" data-time="2h">2 horas</div>
-      <div class="option" data-time="3h">3 horas</div>
-      <div class="option danger" data-time="indef">Até desativar</div>
-      <div class="option danger" data-time="perm">Permanentemente</div>
-    </div>
+  <div id="playlistWindow" class="modal-menu">
+    <h3>Playlist Atual</h3>
+    <ul id="playlistItems" style="max-height:200px;overflow:auto;padding-left:1rem;text-align:left;"></ul>
     <div style="margin-top:1rem;text-align:center;">
-      <button id="closePunish" class="btn">Fechar</button>
+      <button onclick="document.getElementById('playlistWindow').classList.remove('visible')" class="btn">Fechar</button>
     </div>
   </div>
 
-  <!-- Modal de Aprovação -->
-  <div id="approveModal" class="modal-menu">
-    <h3><span id="approveUserName"></span> quer entrar na sala.</h3>
-    <div style="margin-top:1rem;text-align:center;">
-      <button id="approveAccept" class="btn">Aceitar</button>
-      <button id="approveDeny" class="btn danger">Negar</button>
-    </div>
-  </div>
+  <div id="participantList"></div>
 
   <script>
-    const approveModal = document.getElementById('approveModal');
-    const approveUserName = document.getElementById('approveUserName');
-    const approveAccept = document.getElementById('approveAccept');
-    const approveDeny = document.getElementById('approveDeny');
+    const playlist = [];
+    const playlistWindow = document.getElementById('playlistWindow');
+    const playlistItems = document.getElementById('playlistItems');
+    const showPlaylistBtn = document.getElementById('showPlaylistBtn');
+    const showParticipantsBtn = document.getElementById('showParticipantsBtn');
+    const participantList = document.getElementById('participantList');
 
-    function handleJoinRequest(conn, data) {
-      pendingRequests[conn.peer] = { conn, name: data.name };
-      approveUserName.textContent = data.name;
-      approveModal.dataset.peer = conn.peer;
-      approveModal.classList.add('visible');
-    }
-
-    approveAccept.onclick = () => {
-      const peerId = approveModal.dataset.peer;
-      const user = pendingRequests[peerId];
-      if (user) {
-        user.conn.send({ type: 'joinAccept' });
-        connList[peerId] = { conn: user.conn, name: user.name };
-        updateParticipantUI();
-        appendChat('[Sistema] ' + user.name + ' entrou na sala.');
-        delete pendingRequests[peerId];
-      }
-      approveModal.classList.remove('visible');
+    let isAdmin = true;
+    const connList = {
+      exemplo1: { name: 'Luana', ua: 'Mozilla/5.0' },
+      exemplo2: { name: 'Jonathan', ua: 'Mozilla/5.0' }
     };
 
-    approveDeny.onclick = () => {
-      const peerId = approveModal.dataset.peer;
-      const user = pendingRequests[peerId];
-      if (user) {
-        user.conn.send({ type: 'joinDeny' });
-        appendChat('[Sistema] Entrada negada para ' + user.name + '.');
-        delete pendingRequests[peerId];
+    function addToPlaylist(url, name) {
+      const type = url.includes('.mp3') ? 'Áudio' : 'Vídeo';
+      playlist.push({ url, addedBy: name, type });
+      updatePlaylistDisplay();
+    }
+
+    function updatePlaylistDisplay() {
+      playlistItems.innerHTML = '';
+      playlist.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.textContent = `${index === 0 ? '[Tocando agora] ' : ''}${item.type}: ${item.url.split('/').pop()} (por ${item.addedBy})`;
+        playlistItems.appendChild(li);
+      });
+    }
+
+    showPlaylistBtn.onclick = () => {
+      if (/Mobi|Android/i.test(navigator.userAgent)) {
+        window.open('about:blank', '_blank').document.write('<h1 style="padding:1rem;font-family:sans-serif;">Playlist</h1><ul>' + playlist.map(item => `<li>${item.type}: ${item.url.split('/').pop()} (por ${item.addedBy})</li>`).join('') + '</ul>');
+      } else {
+        playlistWindow.classList.add('visible');
       }
-      approveModal.classList.remove('visible');
+    };
+
+    showParticipantsBtn.onclick = () => {
+      participantList.innerHTML = '';
+      Object.entries(connList).forEach(([id, data]) => {
+        const div = document.createElement('div');
+        div.className = 'participantItem';
+        div.title = data.ua || '';
+        const name = document.createElement('span');
+        name.className = 'participantName';
+        name.textContent = data.name || id;
+        div.appendChild(name);
+
+        if (isAdmin) {
+          const adminControls = document.createElement('div');
+          adminControls.className = 'admin-controls';
+          ['silence','kick','ban'].forEach(action => {
+            const btn = document.createElement('button');
+            btn.textContent = action;
+            if (action !== 'silence') btn.classList.add('danger');
+            btn.onclick = () => alert(`${action} em ${data.name}`);
+            adminControls.appendChild(btn);
+          });
+          div.appendChild(adminControls);
+        }
+
+        participantList.appendChild(div);
+      });
+      participantList.style.display = participantList.style.display === 'block' ? 'none' : 'block';
     };
   </script>
 </body>
