@@ -3,106 +3,64 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Chat + Player</title>
+  <title>Chat + Player Completo</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{background:#121212;color:#EEE;font-family:Arial,sans-serif;display:flex;flex-direction:column;height:100vh;}
-    #mainUI{max-width:1200px;margin:0 auto;display:none;flex:1;flex-direction:row;}
-    @media (min-width:1600px){
-      #mainUI{max-width:900px;margin:2rem auto;border:1px solid #444;border-radius:10px;box-shadow:0 0 20px #0008;}
-    }
-    @media (max-width:768px){
-      #mainUI{display:flex!important;flex-direction:column!important;width:100%!important;height:100vh!important;margin:0!important;padding:.5rem!important;}
-      #playerArea{flex:none!important;width:100%!important;max-width:100%!important;height:auto!important;}
-      #chatArea{flex:none!important;width:100%!important;height:150px!important;border-left:none!important;border-top:1px solid #333!important;margin-top:.5rem!important;display:flex!important;}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+    #menuSetup,#namePrompt,#waitingApproval{padding:1rem;display:flex;flex-direction:column;gap:.5rem;align-items:center;text-align:center;}
+    #mainUI{display:none;flex:1;flex-direction:row;max-width:1200px;margin:0 auto;position:relative;}
+    @media(min-width:1600px){#mainUI{max-width:900px;margin:2rem auto;border:1px solid #444;border-radius:10px;box-shadow:0 0 20px #0008;}}
+    @media(max-width:768px){
+      #mainUI{flex-direction:column!important;width:100%!important;height:100vh!important;padding:.5rem!important;}
+      #playerArea,#chatArea{width:100%!important;}
+      #chatArea{height:150px!important;border-left:none!important;border-top:1px solid #333!important;margin-top:.5rem!important;}
     }
     #playerArea{flex:2;background:#222;display:flex;flex-direction:column;align-items:center;padding:1rem;position:relative;}
     video{width:100%;max-width:800px;border-radius:6px;background:#000;position:relative;z-index:1;}
     #controls{margin:1rem;display:flex;gap:.5rem;flex-wrap:wrap;position:relative;z-index:1;}
     .btn{background:#ff4500;border:none;color:#FFF;padding:.5rem 1rem;border-radius:5px;cursor:pointer;z-index:1;}
-    #chatArea{flex:1;display:flex;flex-direction:column;background:#1f1f1f;border-left:1px solid #333;}
+    #chatArea{flex:1;display:flex;flex-direction:column;background:#1f1f1f;border-left:1px solid #333;position:relative;}
     #chatLog{flex:1;overflow-y:auto;padding:.5rem;}
     #chatInputArea{padding:.5rem;display:flex;gap:.5rem;}
     #chatInput{flex:1;padding:.5rem;border-radius:4px;border:none;background:#222;color:#EEE;}
-    #menuSetup,#namePrompt{padding:1rem;display:flex;flex-direction:column;gap:.5rem;align-items:center;}
     #fileMenuModal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);display:none;justify-content:center;align-items:center;z-index:9999;}
     #fileMenuContent{background:#333;padding:1.5rem;border-radius:8px;min-width:320px;display:flex;flex-direction:column;gap:.75rem;}
     #fileMenuContent button{background:#444;color:#fff;padding:.75rem;border:none;border-radius:5px;cursor:pointer;font-size:1rem;}
-
-    /* Tela de espera */
-    #waitingScreen {
-      display:none;
-      position:fixed;
-      inset:0;
-      background:#121212cc;
-      color:#EEE;
-      font-size:1.3rem;
-      font-weight:bold;
-      flex-direction:column;
-      justify-content:center;
-      align-items:center;
-      z-index:10000;
-    }
-    #waitingScreen img {
-      width:64px;
-      height:64px;
-      margin-bottom:1rem;
-    }
-    #adminPrompt {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      background: #333;
-      padding: 0.8rem 1rem;
-      border-radius: 8px;
-      max-width: 300px;
-      z-index: 10001;
-      box-shadow: 0 0 10px #0008;
-      display: none;
-      flex-direction: column;
-      gap: 0.5rem;
-      color: #EEE;
-    }
-    #adminPrompt button {
-      background: #ff4500;
-      border: none;
-      color: #FFF;
-      padding: 0.4rem 0.8rem;
-      border-radius: 5px;
-      cursor: pointer;
-      font-weight: bold;
-      font-size: 0.9rem;
-    }
-    #adminPrompt .buttons {
-      display: flex;
-      justify-content: space-between;
-    }
+    #participantList{display:none;position:absolute;top:10px;right:10px;background:#2c2c2c;padding:1rem;border-radius:6px;z-index:10;max-height:400px;overflow-y:auto;}
+    .participantItem{display:flex;align-items:center;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid #444;}
+    .participantItem:hover{background:#333;}
+    .participantName{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .admin-controls{display:flex;gap:.3rem;}
+    .admin-controls button{background:#444;border:none;color:#EEE;padding:.2rem .5rem;border-radius:4px;cursor:pointer;font-size:.8rem;}
+    .admin-controls .danger{background:#a00;}
+    .modal-menu{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#222;border:1px solid #555;padding:1rem;border-radius:8px;display:none;z-index:10000;}
+    .modal-menu.visible{display:block;}
+    .modal-menu h3{margin-bottom:1rem;}
+    .modal-menu .option{margin:.3rem 0;padding:.5rem;background:#444;color:#FFF;border-radius:4px;text-align:center;cursor:pointer;}
+    .modal-menu .option.danger{background:#a00;}
   </style>
 </head>
 <body>
-  <!-- Tela inicial: criar/entrar -->
+  <!-- Tela inicial -->
   <div id="menuSetup">
+    <label for="roomCode" class="sr-only">Código da sala</label>
     <input id="roomCode" placeholder="Código da sala (ex: A91J)" maxlength="4" style="text-transform:uppercase"/>
     <button id="createRoom" class="btn">Criar Sala</button>
-    <button id="joinRoom"  class="btn">Entrar na Sala</button>
+    <button id="joinRoom" class="btn">Entrar na Sala</button>
   </div>
-  <!-- Prompt de nickname -->
+
+  <!-- Prompt de nome -->
   <div id="namePrompt" style="display:none;">
+    <label for="nickname" class="sr-only">Nome de usuário</label>
     <input id="nickname" placeholder="Seu nome de usuário"/>
     <button id="enterRoom" class="btn">Entrar</button>
   </div>
-  <!-- Tela de espera aguardando admin -->
-  <div id="waitingScreen" style="display:none;flex;">
-    <img src="https://media.tenor.com/On7kvXhzml4AAAAj/loading-load-gif.gif" alt="Loading"/>
-    Esperando o Administrador aceitar sua solicitação!
-  </div>
-  <!-- Prompt para admin aceitar entrada -->
-  <div id="adminPrompt">
-    <div><strong>Solicitação de entrada:</strong> <span id="pendingUser"></span></div>
-    <div class="buttons">
-      <button id="acceptUserBtn">Aceitar</button>
-      <button id="denyUserBtn">Negar</button>
-    </div>
+
+  <!-- Espera aprovação -->
+  <div id="waitingApproval" style="display:none;">
+    <img src="https://media.tenor.com/On7kvXhzml4AAAAj/loading-gif.gif" alt="Carregando" width="64" height="64"/>
+    <p aria-live="assertive">Esperando o Administrador aceitar sua solicitação...</p>
   </div>
 
   <!-- Main UI -->
@@ -110,20 +68,22 @@
     <div id="playerArea">
       <video id="mediaPlayer" controls autoplay></video>
       <div id="controls">
-        <button id="chooseMediaBtn"   class="btn">Escolher Arquivo/Link/Tela</button>
-        <button id="showPlaylistBtn"  class="btn">📃 Playlist</button>
+        <button id="chooseMediaBtn" class="btn">Escolher Arquivo/Link/Tela</button>
+        <button id="showPlaylistBtn" class="btn">📃 Playlist</button>
+        <button id="showParticipantsBtn" class="btn">👥 Participantes</button>
       </div>
     </div>
     <div id="chatArea">
-      <div id="chatLog"></div>
+      <div id="chatLog" aria-live="polite"></div>
       <div id="chatInputArea">
-        <input  id="chatInput" placeholder="Digite sua mensagem" autocomplete="off"/>
+        <label for="chatInput" class="sr-only">Mensagem</label>
+        <input id="chatInput" placeholder="Digite sua mensagem" autocomplete="off"/>
         <button id="sendChatBtn" class="btn">Enviar</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal mídia -->
+  <!-- Modal Mídia -->
   <div id="fileMenuModal">
     <div id="fileMenuContent">
       <button id="selectFileBtn">Escolher do dispositivo</button>
@@ -132,334 +92,219 @@
     </div>
   </div>
 
-<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
-<script>
-  // Elementos
-  const mediaPlayer     = document.getElementById('mediaPlayer');
-  const fileMenuModal   = document.getElementById('fileMenuModal');
-  const chooseMediaBtn  = document.getElementById('chooseMediaBtn');
-  const selectFileBtn   = document.getElementById('selectFileBtn');
-  const insertLinkBtn   = document.getElementById('insertLinkBtn');
-  const shareScreenBtn  = document.getElementById('shareScreenBtn');
-  const menuSetup       = document.getElementById('menuSetup');
-  const namePrompt      = document.getElementById('namePrompt');
-  const nicknameInput   = document.getElementById('nickname');
-  const enterRoomBtn    = document.getElementById('enterRoom');
-  const joinRoomBtn     = document.getElementById('joinRoom');
-  const createRoomBtn   = document.getElementById('createRoom');
-  const chatLog         = document.getElementById('chatLog');
-  const chatInput       = document.getElementById('chatInput');
-  const sendChatBtn     = document.getElementById('sendChatBtn');
-  const mainUI          = document.getElementById('mainUI');
-  const waitingScreen   = document.getElementById('waitingScreen');
-  const adminPrompt     = document.getElementById('adminPrompt');
-  const pendingUserSpan = document.getElementById('pendingUser');
-  const acceptUserBtn   = document.getElementById('acceptUserBtn');
-  const denyUserBtn     = document.getElementById('denyUserBtn');
+  <!-- Lista Participantes -->
+  <div id="participantList">
+    <!-- itens gerados dinamicamente -->
+  </div>
 
-  // Estado
-  let peer, connList = {}, roomID = '', isAdmin = false, myName = '', currentMedia = null;
-  let pendingRequests = {}; // para controlar pedidos pendentes (peerId -> {name, peerId})
+  <!-- Modal Punição -->
+  <div id="punishModal" class="modal-menu">
+    <h3>Aplicar ação a <span id="punishUserName"></span></h3>
+    <div>
+      <div class="option" data-time="5m">5 minutos</div>
+      <div class="option" data-time="10m">10 minutos</div>
+      <div class="option" data-time="30m">30 minutos</div>
+      <div class="option" data-time="50m">50 minutos</div>
+      <div class="option" data-time="1h">1 hora</div>
+      <div class="option" data-time="2h">2 horas</div>
+      <div class="option" data-time="3h">3 horas</div>
+      <div class="option danger" data-time="indef">Até desativar</div>
+      <div class="option danger" data-time="perm">Permanentemente</div>
+    </div>
+    <div style="margin-top:1rem;text-align:center;">
+      <button id="closePunish" class="btn">Fechar</button>
+    </div>
+  </div>
 
-  // Append chat
-  function appendChat(msg){
-    const d = document.createElement('div');
-    d.textContent = msg;
-    chatLog.appendChild(d);
-    chatLog.scrollTop = chatLog.scrollHeight;
-  }
+  <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+  <script>
+    // Variáveis globais
+    let peer, connList = {}, isAdmin = false, roomID = '', myName = '', currentMedia = null, pendingRequests = {};
 
-  // Envia dados a todos
-  function sendToAll(data){
-    Object.values(connList).forEach(c=>c.conn.send(data));
-  }
+    // Elementos
+    const menuSetup = document.getElementById('menuSetup');
+    const namePrompt = document.getElementById('namePrompt');
+    const waitingApproval = document.getElementById('waitingApproval');
+    const mainUI = document.getElementById('mainUI');
+    const mediaPlayer = document.getElementById('mediaPlayer');
+    const chooseMediaBtn = document.getElementById('chooseMediaBtn');
+    const showParticipantsBtn = document.getElementById('showParticipantsBtn');
+    const participantList = document.getElementById('participantList');
+    const chatLog = document.getElementById('chatLog');
+    const chatInput = document.getElementById('chatInput');
+    const sendChatBtn = document.getElementById('sendChatBtn');
+    const fileMenuModal = document.getElementById('fileMenuModal');
+    const selectFileBtn = document.getElementById('selectFileBtn');
+    const insertLinkBtn = document.getElementById('insertLinkBtn');
+    const shareScreenBtn = document.getElementById('shareScreenBtn');
+    const punishModal = document.getElementById('punishModal');
+    const punishUserName = document.getElementById('punishUserName');
+    const closePunish = document.getElementById('closePunish');
 
-  // Envia chat
-  function sendChatMessage(text){
-    if(!text.trim()) return;
-    appendChat(myName + ': ' + text);
-    sendToAll({type:'chat', name:myName, msg:text});
-  }
+    // Append chat
+    function appendChat(msg){ const d=document.createElement('div'); d.textContent=msg; chatLog.appendChild(d); chatLog.scrollTop=chatLog.scrollHeight; }
 
-  // abrir/fechar modal
-  chooseMediaBtn.onclick = ()=> fileMenuModal.style.display='flex';
-  fileMenuModal.onclick = e=>{
-    if(e.target===fileMenuModal) fileMenuModal.style.display='none';
-  };
+    // Send to all
+    function sendToAll(data){ Object.values(connList).forEach(c=>c.conn.send(data)); }
 
-  // Upload arquivo
-  selectFileBtn.onclick = ()=>{
-    const inp = document.createElement('input');
-    inp.type='file'; inp.accept='video/*,audio/*';
-    inp.onchange=()=>{
-      const f=inp.files[0];
-      if(!f) return;
-      const url=URL.createObjectURL(f);
-      currentMedia={type:'media',url, time:0, paused:false};
-      mediaPlayer.srcObject=null; mediaPlayer.src=url; mediaPlayer.play();
-      sendToAll(currentMedia);
-      fileMenuModal.style.display='none';
+    // Setup calls
+    function setupCallHandlers(){ peer.on('call', call=>{ call.answer(); call.on('stream',stream=>{ mediaPlayer.srcObject=stream; mediaPlayer.play(); }); }); }
+
+    // Create room
+    function createRoom(code){
+      peer=new Peer(code); isAdmin=true;
+      peer.on('open',()=>appendChat('[Sistema] Sala criada: '+code));
+      peer.on('connection',conn=>{
+        conn.on('data',data=>{
+          if(data.type==='media'){ currentMedia=data; applyMedia(data); }
+          if(data.type==='chat') appendChat(data.name+': '+data.msg);
+          if(data.type==='joinRequest'){ handleJoinRequest(conn,data); }
+          if(data.type==='punish') handlePunish(data);
+        });
+        connList[conn.peer]={conn};
+        updateParticipantUI();
+      });
+      setupCallHandlers();
+    }
+
+    // Join room
+    function joinRoom(code,name){
+      peer=new Peer(); isAdmin=false; myName=name;
+      peer.on('open',()=>{
+        const conn=peer.connect(code);
+        conn.on('open',()=>{ conn.send({type:'joinRequest',name}); waitingApproval.style.display='flex'; });
+        conn.on('data',data=>{
+          if(data.type==='joinAccept'){ waitingApproval.style.display='none'; enterMainUI(); }
+          if(data.type==='joinDeny'){ alert('Entrada negada'); location.reload(); }
+          if(data.type==='media') applyMedia(data);
+          if(data.type==='chat') appendChat(data.name+': '+data.msg);
+          if(data.type==='punish') handlePunish(data);
+        });
+        connList[code]={conn};
+      });
+      setupCallHandlers();
+    }
+
+    // Apply media
+    function applyMedia(data){
+      mediaPlayer.srcObject=null; mediaPlayer.src=data.url;
+      mediaPlayer.onloadedmetadata=()=>{ mediaPlayer.currentTime=data.time||0; data.paused?mediaPlayer.pause():mediaPlayer.play(); };
+    }
+
+    // Handle join requests (admin)
+    function handleJoinRequest(conn,data){
+      pendingRequests[conn.peer]={conn,name:data.name};
+      appendChat('[Sistema] Pedido de '+data.name);
+      // show request UI (simplified)
+      if(confirm(data.name+' quer entrar. Aceitar?')){
+        conn.send({type:'joinAccept'}); connList[conn.peer]={conn,name:data.name,ua:data.userAgent}; updateParticipantUI();
+      } else conn.send({type:'joinDeny'});
+    }
+
+    // Handle punish
+    function handlePunish(data){
+      if(data.action==='silence') applySilence(data);
+      else if(data.action!=='chat') alert('Você foi '+data.action);
+    }
+
+    function applySilence(data){
+      chatInput.disabled=true;
+      const end=Date.now()+parseTime(data.time);
+      const iv=setInterval(()=>{
+        const rem=end-Date.now();
+        if(rem<=0){ clearInterval(iv); chatInput.disabled=false; return; }
+        chatInput.placeholder='Silenciado, resto '+Math.ceil(rem/60000)+'min';
+      },1000);
+    }
+
+    function parseTime(val){
+      if(val.endsWith('m')) return parseInt(val)*60000;
+      if(val.endsWith('h')) return parseInt(val)*3600000;
+      return Infinity;
+    }
+
+    // Update participants UI
+    function updateParticipantUI(){
+      participantList.innerHTML='';
+      Object.entries(connList).forEach(([peerId,u])=>{
+        const div=document.createElement('div'); div.className='participantItem'; div.title=u.ua||'';
+        const nameSpan=document.createElement('span'); nameSpan.className='participantName'; nameSpan.textContent=u.name||peerId;
+        div.appendChild(nameSpan);
+        if(isAdmin){
+          const ac=document.createElement('div'); ac.className='admin-controls';
+          ['silence','kick','ban'].forEach(act=>{
+            const b=document.createElement('button'); b.textContent=act; if(act!=='silence') b.className='danger';
+            b.onclick=()=>openPunish(peerId,act,u.name);
+            ac.appendChild(b);
+          });
+          div.appendChild(ac);
+        }
+        participantList.appendChild(div);
+      });
+    }
+
+    function openPunish(peerId,action,name){
+      punishUserName.textContent=name; punishModal.dataset.peer=peerId; punishModal.dataset.action=action;
+      punishModal.classList.add('visible');
+    }
+
+    closePunish.onclick=()=>punishModal.classList.remove('visible');
+    punishModal.querySelectorAll('.option').forEach(opt=>{
+      opt.onclick=()=>{
+        const time=opt.dataset.time; const peerId=punishModal.dataset.peer;
+        connList[peerId].conn.send({type:'punish',action:punishModal.dataset.action,time});
+        punishModal.classList.remove('visible');
+      };
+    });
+
+    // Button events
+    document.getElementById('createRoom').onclick=()=>{
+      roomID=Math.random().toString(36).substr(2,4).toUpperCase();
+      menuSetup.style.display='none'; namePrompt.style.display='flex';
+      document.getElementById('enterRoom').onclick=()=>{
+        myName=document.getElementById('nickname').value||'Usuário';
+        namePrompt.style.display='none'; createRoom(roomID); enterMainUI();
+      };
     };
-    inp.click();
-  };
-
-  // Link
-  insertLinkBtn.onclick=()=>{
-    const url=prompt('Cole o link da mídia:');
-    if(!url) return;
-    currentMedia={type:'media',url,time:0,paused:false};
-    mediaPlayer.srcObject=null; mediaPlayer.src=url; mediaPlayer.play();
-    sendToAll(currentMedia);
-    fileMenuModal.style.display='none';
-  };
-
-  // Transmitir tela
-  shareScreenBtn.onclick=async()=>{
-    try{
-      const stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
-      currentMedia={type:'stream'};
-      mediaPlayer.srcObject=stream; mediaPlayer.play();
-      Object.values(connList).forEach(c=>{
-        const call=peer.call(c.conn.peer, stream);
-        c.call=call;
-      });
-      fileMenuModal.style.display='none';
-    }catch(err){
-      alert('Erro: '+err);
-    }
-  };
-
-  // Sincronizar play/pause do admin
-  mediaPlayer.onplay = ()=>{
-    if(isAdmin && currentMedia && currentMedia.type==='media'){
-      currentMedia.time=mediaPlayer.currentTime;
-      currentMedia.paused=false;
-      sendToAll(currentMedia);
-    }
-  };
-  mediaPlayer.onpause=()=>{
-    if(isAdmin && currentMedia && currentMedia.type==='media'){
-      currentMedia.time=mediaPlayer.currentTime;
-      currentMedia.paused=true;
-      sendToAll(currentMedia);
-    }
-  };
-
-  // Chamada WebRTC
-  function setupCallHandlers(){
-    peer.on('call', call=>{
-      call.answer();
-      call.on('stream',stream=>{
-        mediaPlayer.srcObject=stream;
-        mediaPlayer.play();
-      });
-    });
-  }
-
-  // Criar sala
-  function createRoom(code){
-    peer=new Peer(code);
-    isAdmin=true;
-    peer.on('open',()=>{
-      appendChat('[Sistema] Sala criada: '+code);
-    });
-    peer.on('connection',conn=>{
-      conn.on('data',data=>{
-        if(data.type==='media'){
-          currentMedia=data;
-          mediaPlayer.srcObject=null;
-          mediaPlayer.src=data.url;
-          mediaPlayer.onloadedmetadata=()=>{
-            mediaPlayer.currentTime=data.time||0;
-            data.paused?mediaPlayer.pause():mediaPlayer.play();
-          };
-        }
-        if(data.type==='chat'){
-          appendChat(data.name+': '+data.msg);
-        }
-        if(data.type==='joinRequest'){
-          // novo pedido de entrada
-          pendingRequests[conn.peer] = { name: data.name, peerId: conn.peer, conn };
-          pendingUserSpan.textContent = data.name;
-          adminPrompt.style.display = 'flex';
-          appendChat(`[Sistema] Pedido de entrada de ${data.name}`);
-        }
-        if(data.type==='joinAccept'){
-          // usuario aceito pelo admin - cliente
-          waitingScreen.style.display = 'none';
-          namePrompt.style.display = 'flex';
-          chatInput.disabled = false;
-          sendChatBtn.disabled = false;
-        }
-        if(data.type==='joinDeny'){
-          alert('O administrador negou sua entrada na sala.');
-          waitingScreen.style.display = 'none';
-          menuSetup.style.display = 'flex';
-          chatInput.disabled = false;
-          sendChatBtn.disabled = false;
-        }
-      });
-      connList[conn.peer]={conn};
-    });
-    setupCallHandlers();
-  }
-
-  // Entrar em sala
-  function joinRoom(code, userName){
-    peer=new Peer();
-    isAdmin=false;
-    peer.on('open',()=>{
-      const conn=peer.connect(code);
-      conn.on('open',()=>{
-        // envia pedido de entrada ao admin
-        conn.send({type:'joinRequest', name: userName});
-      });
-      conn.on('data',data=>{
-        if(data.type==='media'){
-          mediaPlayer.srcObject=null;
-          mediaPlayer.src=data.url;
-          mediaPlayer.onloadedmetadata=()=>{
-            mediaPlayer.currentTime=data.time||0;
-            data.paused?mediaPlayer.pause():mediaPlayer.play();
-          };
-        }
-        if(data.type==='chat') appendChat(data.name+': '+data.msg);
-        if(data.type==='join') appendChat('[Sistema] '+data.name+' entrou na sala.');
-        if(data.type==='joinAccept'){
-          // recebido do admin, usuário liberado para entrar
-          waitingScreen.style.display = 'none';
-          namePrompt.style.display = 'none';
-          mainUI.style.display = 'flex';
-          chatInput.disabled = false;
-          sendChatBtn.disabled = false;
-          myName = userName;
-          sendChatMessage('Entrou na sala!');
-        }
-        if(data.type==='joinDeny'){
-          alert('O administrador negou sua entrada na sala.');
-          waitingScreen.style.display = 'none';
-          menuSetup.style.display = 'flex';
-          chatInput.disabled = false;
-          sendChatBtn.disabled = false;
-        }
-      });
-      connList[code]={conn};
-    });
-    setupCallHandlers();
-  }
-
-  // Eventos botões criar sala
-  createRoomBtn.onclick=()=>{
-    roomID=Math.random().toString(36).slice(2,6).toUpperCase();
-    menuSetup.style.display='none';
-    namePrompt.style.display='flex';
-    enterRoomBtn.onclick=()=>{
-      myName=nicknameInput.value.trim()||'Usuário';
-      namePrompt.style.display='none';
-      mainUI.style.display='flex';
-      mediaPlayer.controls=true;
-      createRoom(roomID);
+    document.getElementById('joinRoom').onclick=()=>{
+      const code=document.getElementById('roomCode').value.trim().toUpperCase();
+      if(!code)return alert('Código?');
+      menuSetup.style.display='none'; namePrompt.style.display='flex';
+      document.getElementById('enterRoom').onclick=()=>{
+        const nm=document.getElementById('nickname').value||'Usuário';
+        namePrompt.style.display='none'; joinRoom(code,nm);
+      };
     };
-  };
+    function enterMainUI(){ mainUI.style.display='flex'; updateParticipantUI(); }
 
-  // Eventos botões entrar na sala
-  joinRoomBtn.onclick=()=>{
-    const code=document.getElementById('roomCode').value.trim().toUpperCase();
-    if(!code) return alert('Informe o código!');
-    // Mostrar tela de espera direto
-    waitingScreen.style.display = 'flex';
-    menuSetup.style.display = 'none';
-    chatInput.disabled = true;
-    sendChatBtn.disabled = true;
+    // Chat
+    sendChatBtn.onclick=()=>{ sendToAll({type:'chat',name:myName,msg:chatInput.value}); appendChat(myName+': '+chatInput.value); chatInput.value=''; };
+    chatInput.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendChatBtn.click(); } });
 
-    // Conectar ao peer para enviar pedido de entrada
-    // Criar conexão temporária peer para enviar joinRequest e receber resposta
-    // O nickname será perguntado APÓS a aprovação do admin
-    peer = new Peer();
-    peer.on('open', () => {
-      const conn = peer.connect(code);
-      conn.on('open', () => {
-        // Enviar joinRequest com nome vazio por enquanto
-        conn.send({ type: 'joinRequest', name: 'Solicitante' });
-      });
-      conn.on('data', data => {
-        if (data.type === 'joinAccept') {
-          // Admin aceitou, agora mostra o prompt de nome e cria conexão definitiva
-          waitingScreen.style.display = 'none';
-          namePrompt.style.display = 'flex';
-          adminPrompt.style.display = 'none';
-          chatInput.disabled = false;
-          sendChatBtn.disabled = false;
-          conn.close();
-          peer.destroy();
+    // Media menu
+    chooseMediaBtn.onclick=()=>fileMenuModal.style.display='flex';
+    fileMenuModal.onclick=e=>{ if(e.target===fileMenuModal)fileMenuModal.style.display='none'; };
+    selectFileBtn.onclick=()=>{
+      const inp=document.createElement('input'); inp.type='file'; inp.accept='video/*,audio/*';
+      inp.onchange=()=>{ const f=inp.files[0]; if(f){ const url=URL.createObjectURL(f); currentMedia={type:'media',url,time:0,paused:false}; applyMedia(currentMedia); sendToAll(currentMedia); fileMenuModal.style.display='none'; } };
+      inp.click();
+    };
+    insertLinkBtn.onclick=()=>{
+      const url=prompt('Cole o link da mídia:');
+      if(!url)return;
+      const ok=/\\.(mp4|webm|mov|m4v|ogg)(\\?.*)?$/.test(url)||url.startsWith('https://api-cdn-us-mp4');
+      if(!ok)return alert('Link não compatível');
+      currentMedia={type:'media',url,time:0,paused:false}; applyMedia(currentMedia); sendToAll(currentMedia); fileMenuModal.style.display='none';
+    };
+    shareScreenBtn.onclick=async()=>{
+      try{ const s=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true}); currentMedia={type:'stream'}; mediaPlayer.srcObject=s; mediaPlayer.play();
+        Object.values(connList).forEach(c=>{ c.call=peer.call(c.conn.peer,s); });
+        fileMenuModal.style.display='none';
+      }catch(err){ alert('Erro: '+err); } };
 
-          enterRoomBtn.onclick = () => {
-            const chosenName = nicknameInput.value.trim() || 'Usuário';
-            joinRoom(code, chosenName);
-            namePrompt.style.display = 'none';
-          };
-        }
-        if (data.type === 'joinDeny') {
-          alert('O administrador negou sua entrada na sala.');
-          waitingScreen.style.display = 'none';
-          menuSetup.style.display = 'flex';
-          adminPrompt.style.display = 'none';
-          chatInput.disabled = false;
-          sendChatBtn.disabled = false;
-          conn.close();
-          peer.destroy();
-        }
-      });
-      conn.on('error', () => {
-        alert('Erro ao conectar com a sala.');
-        waitingScreen.style.display = 'none';
-        menuSetup.style.display = 'flex';
-      });
-    });
-  };
-
-  // Admin aceitar ou negar
-  acceptUserBtn.onclick = () => {
-    // pegar primeiro pedido pendente
-    const keys = Object.keys(pendingRequests);
-    if(keys.length === 0) return;
-    const peerId = keys[0];
-    const req = pendingRequests[peerId];
-    req.conn.send({ type: 'joinAccept' });
-    appendChat(`[Sistema] ${req.name} foi aceito na sala.`);
-    connList[peerId] = req; // manter conexão na lista
-    delete pendingRequests[peerId];
-    adminPrompt.style.display = 'none';
-  };
-  denyUserBtn.onclick = () => {
-    const keys = Object.keys(pendingRequests);
-    if(keys.length === 0) return;
-    const peerId = keys[0];
-    const req = pendingRequests[peerId];
-    req.conn.send({ type: 'joinDeny' });
-    appendChat(`[Sistema] ${req.name} teve a entrada negada.`);
-    req.conn.close();
-    delete pendingRequests[peerId];
-    adminPrompt.style.display = 'none';
-  };
-
-  // Chat send
-  sendChatBtn.onclick=()=>{
-    sendChatMessage(chatInput.value);
-    chatInput.value='';
-  };
-  chatInput.addEventListener('keydown',e=>{
-    if(e.key==='Enter'&&!e.shiftKey){
-      e.preventDefault();
-      sendChatMessage(chatInput.value);
-      chatInput.value='';
-    }
-  });
-
-  // Enter no nickname
-  nicknameInput.addEventListener('keydown',e=>{
-    if(e.key==='Enter') enterRoomBtn.click();
-  });
-</script>
+    // Sync play/pause
+    mediaPlayer.onplay=()=>{ if(isAdmin&&currentMedia.type==='media'){ currentMedia.time=mediaPlayer.currentTime; currentMedia.paused=false; sendToAll(currentMedia);} };
+    mediaPlayer.onpause=()=>{ if(isAdmin&&currentMedia.type==='media'){ currentMedia.time=mediaPlayer.currentTime; currentMedia.paused=true; sendToAll(currentMedia);} };
+  </script>
 </body>
 </html>
