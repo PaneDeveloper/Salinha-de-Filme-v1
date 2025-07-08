@@ -24,371 +24,128 @@
     #chatLog{flex:1;overflow-y:auto;padding:.5rem;}
     #chatInputArea{padding:.5rem;display:flex;gap:.5rem;}
     #chatInput{flex:1;padding:.5rem;border-radius:4px;border:none;background:#222;color:#EEE;}
-    #fileMenuModal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);display:none;justify-content:center;align-items:center;z-index:9999;}
-    #fileMenuContent{background:#333;padding:1.5rem;border-radius:8px;min-width:320px;display:flex;flex-direction:column;gap:.75rem;}
-    #fileMenuContent button{background:#444;color:#fff;padding:.75rem;border:none;border-radius:5px;cursor:pointer;font-size:1rem;}
-    #participantListModal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);display:none;justify-content:center;align-items:center;z-index:9998;}
-    #participantListContent{background:#333;padding:1rem 1.5rem;border-radius:8px;max-width:320px;width:100%;max-height:400px;overflow-y:auto;position:relative;}
-    #participantListContent h3{color:#eee;text-align:center;margin-bottom:1rem;}
-    #participantListContent .participantItem{display:flex;align-items:center;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid #444;}
-    #participantListContent .participantItem:hover{background:#333;}
-    #participantListContent .participantName{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    #participantListContent .admin-controls{display:flex;gap:.3rem;}
-    #participantListContent .admin-controls button{background:#444;border:none;color:#EEE;padding:.2rem .5rem;border-radius:4px;cursor:pointer;font-size:.8rem;}
+    #fileMenuModal,#participantListModal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);display:none;justify-content:center;align-items:center;z-index:9999;}
+    #fileMenuContent,#participantListContent{background:#333;padding:1.5rem;border-radius:8px;min-width:320px;display:flex;flex-direction:column;gap:.75rem;position:relative;}
+    #fileMenuContent button,#participantListContent .admin-controls button{background:#444;color:#fff;padding:.75rem;border:none;border-radius:5px;cursor:pointer;font-size:1rem;}
     #participantListContent .admin-controls .danger{background:#a00;}
+    .closeBtn{position:absolute;top:10px;right:10px;background:#a00;color:#fff;border:none;border-radius:50%;width:24px;height:24px;font-weight:bold;cursor:pointer;}
   </style>
 </head>
 <body>
-  <!-- Tela inicial -->
   <div id="menuSetup">
     <label for="roomCode" class="sr-only">Código da sala</label>
-    <input id="roomCode" placeholder="Código da sala (ex: A91J)" maxlength="4" style="text-transform:uppercase"/>
-    <button id="createRoom" class="btn" aria-label="Criar sala">Criar Sala</button>
-    <button id="joinRoom" class="btn" aria-label="Entrar na sala">Entrar na Sala</button>
+    <input id="roomCode" placeholder="Código da sala (ex: A91J)" maxlength="4" style="text-transform:uppercase" aria-label="Campo para inserir o código da sala" />
+    <button id="createRoom" class="btn" aria-label="Criar uma nova sala e configurar o nome">Criar Sala</button>
+    <button id="joinRoom" class="btn" aria-label="Entrar em uma sala existente com código">Entrar na Sala</button>
   </div>
 
-  <!-- Prompt de nome -->
   <div id="namePrompt" style="display:none;">
     <label for="nickname" class="sr-only">Nome de usuário</label>
-    <input id="nickname" placeholder="Seu nome de usuário" aria-label="Seu nome de usuário"/>
-    <button id="enterRoom" class="btn" aria-label="Entrar na sala após digitar nome">Entrar</button>
+    <input id="nickname" placeholder="Seu nome de usuário" aria-label="Campo para inserir o seu nome"/>
+    <button id="enterRoom" class="btn" aria-label="Confirmar e entrar na sala">Entrar</button>
   </div>
 
-  <!-- Espera aprovação -->
   <div id="waitingApproval" style="display:none;">
     <img src="https://media.tenor.com/On7kvXhzml4AAAAj/loading-gif.gif" alt="Carregando" width="64" height="64"/>
     <p aria-live="assertive">Esperando o Administrador aceitar sua solicitação...</p>
   </div>
 
-  <!-- Main UI -->
   <div id="mainUI">
     <div id="playerArea">
-      <video id="mediaPlayer" controls autoplay aria-label="Reprodutor de mídia"></video>
+      <video id="mediaPlayer" controls autoplay></video>
       <div id="controls">
-        <button id="chooseMediaBtn" class="btn" aria-label="Escolher arquivo, link ou tela para reprodução">Escolher Arquivo/Link/Tela</button>
-        <button id="showPlaylistBtn" class="btn" aria-label="Mostrar playlist em nova janela ou guia">📃 Playlist</button>
+        <button id="chooseMediaBtn" class="btn" aria-label="Abrir opções para adicionar mídia">Escolher Arquivo/Link/Tela</button>
+        <button id="showPlaylistBtn" class="btn" aria-label="Ver lista de reprodução">📃 Playlist</button>
         <button id="showParticipantsBtn" class="btn" aria-label="Mostrar participantes da sala">👥 Participantes</button>
       </div>
     </div>
     <div id="chatArea">
-      <div id="chatLog" aria-live="polite" aria-label="Registro de chat"></div>
+      <div id="chatLog" aria-live="polite"></div>
       <div id="chatInputArea">
         <label for="chatInput" class="sr-only">Mensagem</label>
-        <input id="chatInput" placeholder="Digite sua mensagem" autocomplete="off" aria-label="Campo para digitar mensagem"/>
-        <button id="sendChatBtn" class="btn" aria-label="Enviar mensagem de chat">Enviar</button>
+        <input id="chatInput" placeholder="Digite sua mensagem" autocomplete="off" aria-label="Campo de mensagem"/>
+        <button id="sendChatBtn" class="btn" aria-label="Enviar mensagem">Enviar</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal Mídia -->
-  <div id="fileMenuModal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="fileMenuTitle">
+  <div id="fileMenuModal">
     <div id="fileMenuContent">
-      <button id="selectFileBtn" aria-label="Selecionar arquivo do dispositivo">Escolher do dispositivo</button>
-      <button id="insertLinkBtn" aria-label="Inserir link de mídia">Inserir link</button>
-      <button id="shareScreenBtn" aria-label="Transmitir tela do dispositivo">Transmitir Tela</button>
+      <button class="closeBtn" onclick="document.getElementById('fileMenuModal').style.display='none'" aria-label="Fechar menu de mídia">×</button>
+      <button id="selectFileBtn" aria-label="Escolher um arquivo de vídeo ou áudio do seu dispositivo">Escolher do dispositivo</button>
+      <button id="insertLinkBtn" aria-label="Inserir um link direto para o vídeo">Inserir link</button>
+      <button id="shareScreenBtn" aria-label="Transmitir a tela ao vivo">Transmitir Tela</button>
     </div>
   </div>
 
-  <!-- Modal Participantes -->
-  <div id="participantListModal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="participantListTitle">
+  <div id="participantListModal">
     <div id="participantListContent">
-      <h3 id="participantListTitle">Participantes da Sala</h3>
+      <button class="closeBtn" onclick="document.getElementById('participantListModal').style.display='none'" aria-label="Fechar lista de participantes">×</button>
       <div id="participantList"></div>
     </div>
   </div>
 
-  <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
   <script>
-    let peer, connList = {}, isAdmin = false, roomID = '', myName = '', currentMedia = null, pendingRequests = {};
-
-    // Elementos
-    const menuSetup = document.getElementById('menuSetup');
-    const namePrompt = document.getElementById('namePrompt');
-    const waitingApproval = document.getElementById('waitingApproval');
-    const mainUI = document.getElementById('mainUI');
-    const mediaPlayer = document.getElementById('mediaPlayer');
-    const chooseMediaBtn = document.getElementById('chooseMediaBtn');
-    const showPlaylistBtn = document.getElementById('showPlaylistBtn');
-    const showParticipantsBtn = document.getElementById('showParticipantsBtn');
-    const participantList = document.getElementById('participantList');
-    const participantListModal = document.getElementById('participantListModal');
-    const chatLog = document.getElementById('chatLog');
-    const chatInput = document.getElementById('chatInput');
-    const sendChatBtn = document.getElementById('sendChatBtn');
-    const fileMenuModal = document.getElementById('fileMenuModal');
-    const selectFileBtn = document.getElementById('selectFileBtn');
-    const insertLinkBtn = document.getElementById('insertLinkBtn');
-    const shareScreenBtn = document.getElementById('shareScreenBtn');
-
-    const enterRoomBtn = document.getElementById('enterRoom');
-    const nicknameInput = document.getElementById('nickname');
-
-    // Append chat
-    function appendChat(msg){ 
-      const d=document.createElement('div'); 
-      d.textContent=msg; 
-      chatLog.appendChild(d); 
-      chatLog.scrollTop=chatLog.scrollHeight; 
-    }
-
-    // Send to all
-    function sendToAll(data){ 
-      Object.values(connList).forEach(c=>c.conn.send(data)); 
-    }
-
-    // Setup calls
-    function setupCallHandlers(){ 
-      peer.on('call', call=>{
-        call.answer(); 
-        call.on('stream',stream=>{
-          mediaPlayer.srcObject=stream; 
-          mediaPlayer.play(); 
-        }); 
-      }); 
-    }
-
-    // Create room
-    function createRoom(code){
-      peer=new Peer(code); isAdmin=true;
-      peer.on('open',()=>appendChat('[Sistema] Sala criada: '+code));
-      peer.on('connection',conn=>{
-        conn.on('data',data=>{
-          if(data.type==='media'){ currentMedia=data; applyMedia(data); }
-          if(data.type==='chat') appendChat(data.name+': '+data.msg);
-          if(data.type==='joinRequest'){ handleJoinRequest(conn,data); }
-          if(data.type==='punish') handlePunish(data);
-        });
-        connList[conn.peer]={conn};
-        updateParticipantList();
-      });
-      setupCallHandlers();
-    }
-
-    // Join room
-    function joinRoom(code,name){
-      peer=new Peer(); isAdmin=false; myName=name;
-      peer.on('open',()=>{
-        const conn=peer.connect(code);
-        conn.on('open',()=>{
-          conn.send({type:'joinRequest',name});
-          waitingApproval.style.display='flex';
-        });
-        conn.on('data',data=>{
-          if(data.type==='joinAccept'){
-            waitingApproval.style.display='none'; 
-            enterMainUI();
-          }
-          if(data.type==='joinDeny'){
-            alert('Entrada negada');
-            location.reload();
-          }
-          if(data.type==='media') applyMedia(data);
-          if(data.type==='chat') appendChat(data.name+': '+data.msg);
-          if(data.type==='punish') handlePunish(data);
-        });
-        connList[code]={conn};
-      });
-      setupCallHandlers();
-    }
-
-    // Apply media
-    function applyMedia(data){
-      mediaPlayer.srcObject=null;
-      mediaPlayer.src=data.url;
-      mediaPlayer.onloadedmetadata=()=>{
-        mediaPlayer.currentTime=data.time||0;
-        data.paused?mediaPlayer.pause():mediaPlayer.play();
-      };
-    }
-
-    // Handle join requests (admin)
-    function handleJoinRequest(conn,data){
-      pendingRequests[conn.peer]={conn,name:data.name};
-      appendChat('[Sistema] Pedido de ' + data.name);
-      // show request UI (simplified)
-      if(confirm(data.name + ' quer entrar. Aceitar?')){
-        conn.send({type:'joinAccept'});
-        connList[conn.peer]={conn,name:data.name};
-        updateParticipantList();
-      } else {
-        conn.send({type:'joinDeny'});
-      }
-    }
-
-    // Handle punish
-    function handlePunish(data){
-      if(data.action==='silence') applySilence(data);
-      else if(data.action!=='chat') alert('Você foi ' + data.action);
-    }
-
-    function applySilence(data){
-      chatInput.disabled=true;
-      const end=Date.now()+parseTime(data.time);
-      const iv=setInterval(()=>{
-        const rem=end-Date.now();
-        if(rem<=0){
-          clearInterval(iv);
-          chatInput.disabled=false;
-          chatInput.placeholder='Digite sua mensagem';
-          return;
-        }
-        chatInput.placeholder='Silenciado, resto ' + Math.ceil(rem/60000) + 'min';
-      },1000);
-    }
-
-    function parseTime(val){
-      if(val.endsWith('m')) return parseInt(val)*60000;
-      if(val.endsWith('h')) return parseInt(val)*3600000;
-      return Infinity;
-    }
-
-    // Update participants UI
-    function updateParticipantList(){
-      participantList.innerHTML='';
-      Object.entries(connList).forEach(([peerId,u])=>{
-        const div=document.createElement('div');
-        div.className='participantItem';
-        div.title=u.ua||'';
-        const nameSpan=document.createElement('span');
-        nameSpan.className='participantName';
-        nameSpan.textContent=u.name||peerId;
-        div.appendChild(nameSpan);
-        if(isAdmin){
-          const ac=document.createElement('div');
-          ac.className='admin-controls';
-          ['silence','kick','ban'].forEach(act=>{
-            const b=document.createElement('button');
-            b.textContent=act;
-            if(act!=='silence') b.className='danger';
-            b.onclick=()=>openPunish(peerId,act,u.name);
-            ac.appendChild(b);
-          });
-          div.appendChild(ac);
-        }
-        participantList.appendChild(div);
-      });
-    }
-
-    function openPunish(peerId,action,name){
-      alert('Punir ' + name + ' com ação ' + action + '. (Função de punição aqui)');
-    }
-
-    // Button events
-    document.getElementById('createRoom').onclick=()=>{
-      roomID=Math.random().toString(36).substr(2,4).toUpperCase();
-      menuSetup.style.display='none';
-      namePrompt.style.display='flex';
-      enterRoomBtn.onclick=()=>{
-        myName=nicknameInput.value.trim()||'Usuário';
-        if(!myName) return alert('Digite um nome válido');
-        namePrompt.style.display='none';
-        createRoom(roomID);
-        enterMainUI();
-      };
-    };
-    document.getElementById('joinRoom').onclick=()=>{
-      const code=document.getElementById('roomCode').value.trim().toUpperCase();
-      if(!code) return alert('Digite o código da sala');
-      menuSetup.style.display='none';
-      namePrompt.style.display='flex';
-      enterRoomBtn.onclick=()=>{
-        const nm=nicknameInput.value.trim()||'Usuário';
-        if(!nm) return alert('Digite um nome válido');
-        namePrompt.style.display='none';
-        joinRoom(code,nm);
-      };
+    document.getElementById('chooseMediaBtn').onclick = () => {
+      document.getElementById('fileMenuModal').style.display = 'flex';
     };
 
-    function enterMainUI(){
-      mainUI.style.display='flex';
-      updateParticipantList();
-    }
-
-    // Show playlist and participants
-    showParticipantsBtn.onclick = () => {
-      participantListModal.style.display = 'flex';
-    };
-    participantListModal.onclick = e => {
-      if (e.target === participantListModal) participantListModal.style.display = 'none';
+    document.getElementById('showParticipantsBtn').onclick = () => {
+      document.getElementById('participantListModal').style.display = 'flex';
     };
 
-    chooseMediaBtn.onclick = () => {
-      fileMenuModal.style.display = 'flex';
-    };
-    fileMenuModal.onclick = e => {
-      if (e.target === fileMenuModal) fileMenuModal.style.display = 'none';
-    };
-
-    selectFileBtn.onclick = () => {
-      fileMenuModal.style.display = 'none';
+    document.getElementById('selectFileBtn').onclick = () => {
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'video/*,audio/*';
-      input.onchange = e => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const url = URL.createObjectURL(file);
-        currentMedia = { type: 'media', url, paused: false, time: 0 };
-        applyMedia(currentMedia);
-        if (isAdmin) sendToAll(currentMedia);
+      input.onchange = () => {
+        const file = input.files[0];
+        if (file) {
+          const url = URL.createObjectURL(file);
+          const player = document.getElementById('mediaPlayer');
+          player.srcObject = null;
+          player.src = url;
+          player.play();
+          document.getElementById('fileMenuModal').style.display = 'none';
+        }
       };
       input.click();
     };
 
-    insertLinkBtn.onclick = () => {
-      fileMenuModal.style.display = 'none';
-      const url = prompt('Digite a URL do arquivo de mídia:');
-      if (url) {
-        currentMedia = { type: 'media', url, paused: false, time: 0 };
-        applyMedia(currentMedia);
-        if (isAdmin) sendToAll(currentMedia);
-      }
+    document.getElementById('insertLinkBtn').onclick = () => {
+      const url = prompt('Insira o link do vídeo ou áudio:');
+      if (!url) return;
+      const extOK = /\.(mp4|webm|ogg|mp3|wav)(\?.*)?$/.test(url);
+      if (!extOK && !url.startsWith('https://')) return alert('Link inválido');
+      const video = document.getElementById('mediaPlayer');
+      video.srcObject = null;
+      video.src = url;
+      video.play();
+      document.getElementById('fileMenuModal').style.display = 'none';
     };
 
-    shareScreenBtn.onclick = async () => {
-      fileMenuModal.style.display = 'none';
+    document.getElementById('shareScreenBtn').onclick = async () => {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-        mediaPlayer.srcObject = stream;
-        mediaPlayer.play();
-        currentMedia = { type: 'media', url: '', paused: false, time: 0, isScreen: true };
-        if (isAdmin) sendToAll(currentMedia);
-      } catch (e) {
-        alert('Falha ao compartilhar a tela: ' + e.message);
+        const video = document.getElementById('mediaPlayer');
+        video.srcObject = stream;
+        video.play();
+        document.getElementById('fileMenuModal').style.display = 'none';
+      } catch (err) {
+        alert('Erro ao compartilhar tela: ' + err);
       }
     };
 
-    // Chat send
-    sendChatBtn.onclick = () => {
-      const msg = chatInput.value.trim();
-      if (!msg) return;
-      appendChat(myName + ': ' + msg);
-      if (isAdmin) sendToAll({ type: 'chat', name: myName, msg });
-      else if (connList[roomID]) connList[roomID].conn.send({ type: 'chat', name: myName, msg });
-      chatInput.value = '';
+    // Criação e entrada na sala
+    document.getElementById('createRoom').onclick = () => {
+      document.getElementById('menuSetup').style.display = 'none';
+      document.getElementById('namePrompt').style.display = 'flex';
     };
 
-    chatInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter') sendChatBtn.onclick();
-    });
-
-    // Media player events for syncing
-    mediaPlayer.onpause = () => {
-      if (!isAdmin) return;
-      currentMedia.paused = true;
-      currentMedia.time = mediaPlayer.currentTime;
-      sendToAll(currentMedia);
+    document.getElementById('joinRoom').onclick = () => {
+      document.getElementById('menuSetup').style.display = 'none';
+      document.getElementById('namePrompt').style.display = 'flex';
     };
-
-    mediaPlayer.onplay = () => {
-      if (!isAdmin) return;
-      currentMedia.paused = false;
-      currentMedia.time = mediaPlayer.currentTime;
-      sendToAll(currentMedia);
-    };
-
   </script>
 </body>
 </html>
-
-EM DESENVOLVIMENTO, Versão beta
