@@ -12,14 +12,15 @@
 
     /* Telas de Setup e Espera (Menu Inicial, Nome, Aprovação, Recusado) */
     #menuSetup, #namePrompt, #waitingApproval, #rejectedNotice {
-      padding:1rem;
-      display:flex;
-      flex-direction:column;
-      gap:.5rem;
-      align-items:center;
-      text-align:center;
+      padding:1rem; /* */
+      display:flex; /* */
+      flex-direction:column; /* */
+      gap:.5rem; /* */
+      align-items:center; /* */
+      text-align:center; /* */
       justify-content: center; /* Centraliza verticalmente */
-      flex: 1; /* Permite que ocupe o espaço disponível */
+      flex: 1; /* */
+    /* Permite que ocupe o espaço disponível */
     }
 
     /* Layout Principal da UI (PC Padrão) */
@@ -44,13 +45,24 @@
       position:relative;
       border-radius: 8px; /* Bordas arredondadas */
     }
-    video{
-      width:100%;
-      max-width:800px; /* Limite do tamanho do vídeo */
-      border-radius:6px;
-      background:#000;
-      position:relative;
-      z-index:1;
+    #mediaPlayerContainer { /* Novo contêiner para o player */
+        width: 100%;
+        max-width: 800px;
+        position: relative;
+        padding-top: 56.25%; /* Proporção 16:9 (altura/largura = 0.5625) */
+        background: #000;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+    #mediaPlayer, #externalPlayer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border: none;
+        background:#000; /* Garante fundo preto para vídeo */
+        z-index: 1; /* */
     }
     #controls{
       margin:1rem;
@@ -63,7 +75,7 @@
     }
     .btn{
       background:#ff4500;
-      border:none;
+      border:none; /* */
       color:#FFF;
       padding:.5rem 1rem;
       border-radius:5px;
@@ -72,7 +84,7 @@
       font-size: 0.9rem; /* Ajuste para botões */
     }
     .btn:hover {
-        opacity: 0.9;
+        opacity: 0.9; /* */
     }
 
     /* Estilos do Chat */
@@ -82,31 +94,31 @@
       flex-direction:column;
       background:#1f1f1f;
       border-left:1px solid #333;
-      position:relative;
+      position:relative; /* */
       border-radius: 8px;
       margin-left: 0.5rem; /* Espaçamento entre player e chat no PC */
     }
     #chatLog{
-      flex:1;
+      flex:1; /* */
       overflow-y:auto;
       padding:.5rem;
       word-wrap: break-word; /* Quebra palavras longas */
     }
     #chatInputArea{
-        padding:.5rem;
+        padding:.5rem; /* */
         display:flex; /* Usa flexbox para alinhar input e botões */
-        gap:.5rem;
+        gap:.5rem; /* */
         border-top: 1px solid #333; /* Separador para a área de input */
         align-items: flex-end; /* Alinha os itens pela parte de baixo */
     }
     #chatInput{
-        flex:1;
-        padding:.5rem;
+        flex:1; /* */
+        padding:.5rem; /* */
         border-radius:4px;
         border:none;
         background:#222;
         color:#EEE;
-        resize: horizontal; /* Permite redimensionar em todas as direções (incluindo diagonal) */
+        resize: vertical; /* Permite redimensionar verticalmente */
         max-height: 150px; /* Limite de altura para não "estourar" o layout */
         min-height: 40px; /* Altura mínima para o textarea */
         min-width: 100px; /* Largura mínima para o textarea */
@@ -120,22 +132,22 @@
     #shareRoomCodeBtn {
         background-color: #007bff; /* Cor diferente para o botão de compartilhar */
         display: flex;
-        align-items: center;
-        justify-content: center;
+        align-items: center; /* */
+        justify-content: center; /* */
     }
     #shareRoomCodeBtn svg {
         width: 18px;
-        height: 18px;
+        height: 18px; /* */
         fill: white;
     }
 
     /* Estilos dos Modais (Padrão para Telas Maiores) */
     #fileMenuModal, #participantListModal, #playlistModal{
-      position:fixed;
-      top:0;
-      left:0;
-      right:0;
-      bottom:0;
+      position:fixed; /* */
+      top:0; /* */
+      left:0; /* */
+      right:0; /* */
+      bottom:0; /* */
       background:rgba(0,0,0,0.75);
       display:none;
       justify-content:center;
@@ -143,8 +155,8 @@
       z-index:9999;
     }
     #fileMenuContent, #participantListContent, #playlistContent{
-      background:#333;
-      padding:1.5rem;
+      background:#333; /* */
+      padding:1.5rem; /* */
       border-radius:8px;
       min-width:320px;
       display:flex;
@@ -155,9 +167,9 @@
       overflow-y:auto;
     }
     .closeBtn{
-      position:absolute;
-      top:10px;
-      right:10px;
+      position:absolute; /* */
+      top:10px; /* */
+      right:10px; /* */
       background:#a00;
       color:#fff;
       border:none;
@@ -169,27 +181,29 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      font-size: 1.2rem;
+      font-size: 1.2rem; /* */
     }
 
     /* Estilos de Itens da Playlist/Participantes */
-    .playlistItem{display:flex;justify-content:space-between;align-items:center;padding:.5rem;margin-bottom:.3rem;background:#2a2a2a; border-radius: 4px;}
+    .playlistItem{display:flex;justify-content:space-between;align-items:center;padding:.5rem;margin-bottom:.3rem;background:#2a2a2a; /* */
+    border-radius: 4px;}
     .playlistItem span{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .playlistItem small{opacity:0.7; margin-left: 0.5rem;}
+    .playlistItem small{opacity:0.7; /* */
+    margin-left: 0.5rem;}
     #rejectedNotice img {width: 64px;height: 64px;margin-bottom: 0.5rem;}
 
     /* Classe para mensagens privadas (comandos) */
     .private-message {
         color: #ff9933; /* Vermelho-alaranjado */
-        font-style: italic;
+        font-style: italic; /* */
     }
     .system-message {
         color: #aaa;
-        font-style: italic;
+        font-style: italic; /* */
     }
     .warning-message {
         color: yellow;
-        font-style: italic;
+        font-style: italic; /* */
     }
 
     /* --- MEDIA QUERIES --- */
@@ -210,12 +224,12 @@
         background: #1f1f1f; /* Fundo para se destacar */
       }
       #menuSetup input, #namePrompt input {
-        width: 100%;
+        width: 100%; /* */
         padding: 0.8rem;
         font-size: 1rem;
       }
       #menuSetup .btn, #namePrompt .btn, #rejectedNotice .btn {
-        width: 100%;
+        width: 100%; /* */
         padding: 0.8rem;
         font-size: 1rem;
       }
@@ -233,9 +247,9 @@
         padding: 0.5rem;
         border-radius: 0; /* Remove bordas arredondadas em mobile para melhor preenchimento */
       }
-      video {
+      #mediaPlayerContainer {
         max-width: none; /* Remove limite de largura para preencher a tela */
-        border-radius: 0;
+        border-radius: 0; /* */
       }
       #controls {
         margin-top: 0.5rem; /* Ajusta margem para os botões */
@@ -250,19 +264,18 @@
         border-radius: 0; /* Remove bordas arredondadas */
       }
       #chatInputArea {
-        resize: none; /* Desativa redimensionamento manual para o chatInputArea em mobile */
         /* No mobile, os botões ficam ao lado do textarea */
         flex-direction: row; /* Mantém em linha */
         align-items: flex-end; /* Alinha na parte de baixo */
       }
       #chatInput {
           max-height: 100px; /* Limita a altura do input em mobile */
-          min-height: 35px;
+          min-height: 35px; /* */
           resize: vertical; /* Permite redimensionar verticalmente apenas em mobile */
       }
       #shareRoomCodeBtn {
           /* No mobile, o botão de compartilhar deve ficar visível */
-          display: flex;
+          display: flex; /* */
           order: -1; /* Coloca o botão de compartilhar antes do input */
       }
       #sendChatBtn {
@@ -275,7 +288,7 @@
       #mainUI{
         max-width:1800px; /* Aumenta a largura máxima para TVs */
         margin:2rem auto;
-        border:1px solid #444;
+        border:1px solid #444; /* */
         border-radius:10px;
         box-shadow:0 0 20px #0008;
         padding: 1.5rem; /* Mais padding interno */
@@ -285,7 +298,7 @@
         padding: 1.5rem; /* Mais padding interno */
         flex: 3; /* Player ocupa mais espaço */
       }
-      video {
+      #mediaPlayerContainer {
         max-width: 1000px; /* Aumenta o max-width do vídeo */
       }
 
@@ -316,21 +329,21 @@
           left: unset; /* Desativa centralização horizontal */
           transform: unset; /* Remove transform */
           margin-left: auto; /* Empurra para a direita */
-          margin-right: 0;
+          margin-right: 0; /* */
       }
       #fileMenuModal #fileMenuContent {
-          top: 2rem;
-          left: 2rem;
+          top: 2rem; /* */
+          left: 2rem; /* */
           right: unset;
           transform: unset;
           margin-left: 0;
-          margin-right: auto;
+          margin-right: auto; /* */
       }
     }
 
     /* Estilos para o rejectedNotice (mantém o flex-direction) */
     #rejectedNotice {
-      flex-direction: column;
+      flex-direction: column; /* */
       gap: 0.5rem;
       align-items: center;
     }
@@ -347,8 +360,7 @@
   <div id="namePrompt" style="display:none;">
     <label for="nickname" class="sr-only">Nome de usuário</label>
     <input id="nickname" placeholder="Seu nome de usuário" aria-label="Campo para inserir o seu nome"/>
-    <button id="enterRoom" class="btn" aria-label="Confirmar e entrar na sala">Entrar</button>
-  </div>
+    <button id="enterRoom" class="btn" aria-label="Confirmar e entrar na sala">Entrar</button> </div>
 
   <div id="waitingApproval" style="display:none;">
     <img src="https://media.tenor.com/On7kvXhzml4AAAAj/loading-gif.gif" alt="Carregando" width="64" height="64"/>
@@ -362,10 +374,11 @@
   </div>
   <div id="mainUI">
     <div id="playerArea">
-      <video id="mediaPlayer" controls autoplay></video>
+      <div id="mediaPlayerContainer">
+        <video id="mediaPlayer" controls autoplay></video>
+        </div>
       <div id="controls">
-        <button id="chooseMediaBtn" class="btn" aria-label="Abrir opções para adicionar mídia">Escolher Arquivo/Link/Tela</button>
-        <button id="showPlaylistBtn" class="btn" aria-label="Ver lista de reprodução">📃 Playlist</button>
+        <button id="chooseMediaBtn" class="btn" aria-label="Abrir opções para adicionar mídia">Escolher Arquivo/Link/Tela</button> <button id="showPlaylistBtn" class="btn" aria-label="Ver lista de reprodução">📃 Playlist</button>
         <button id="showParticipantsBtn" class="btn" aria-label="Mostrar participantes da sala">👥 Participantes</button>
       </div>
     </div>
@@ -383,10 +396,9 @@
   </div>
 
   <div id="fileMenuModal">
-    <div id="fileMenuContent">
-      <button class="closeBtn" onclick="document.getElementById('fileMenuModal').style.display='none'" aria-label="Fechar menu de mídia">×</button>
+    <div id="fileMenuContent"> <button class="closeBtn" onclick="document.getElementById('fileMenuModal').style.display='none'" aria-label="Fechar menu de mídia">×</button>
       <button id="selectFileBtn" class="btn" aria-label="Escolher um arquivo de vídeo ou áudio do seu dispositivo">Escolher do dispositivo</button>
-      <button id="insertLinkBtn" class="btn" aria-label="Inserir um link direto para o vídeo">Inserir link</button>
+      <button id="insertLinkBtn" class="btn" aria-label="Inserir um link direto para o vídeo">Inserir link de Mídia</button>
       <button id="shareScreenBtn" class="btn" aria-label="Transmitir a tela ao vivo">Transmitir Tela</button>
     </div>
   </div>
@@ -395,8 +407,7 @@
     <div id="participantListContent">
       <button class="closeBtn" onclick="document.getElementById('participantListModal').style.display='none'" aria-label="Fechar lista de participantes">×</button>
       <div id="participantList"></div>
-    </div>
-  </div>
+    </div> </div>
 
   <div id="playlistModal">
     <div id="playlistContent">
@@ -408,59 +419,68 @@
   <audio id="memeSound" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
 
   <script>
-    let isCreatingRoom = false;
+    let isCreatingRoom = false; /* */
     let myName = '';
     let roomID = ''; // Variável global para armazenar o código da sala
 
     // Simulação de sala e participantes
-    let isAdmin = false; // Flag para verificar se o usuário atual é o administrador
-    let approvalTimeout = null;
+    let isAdmin = false; /* */
+    // Flag para verificar se o usuário atual é o administrador
+    let approvalTimeout = null; /* */
     let waitingForApproval = false;
 
     // Dados
     const playlist = [];
-    const participants = [];
-    const validRooms = new Set(); // armazena códigos válidos
+    const participants = []; /* */
+    // A lista de salas válidas será populada dinamicamente para simular um servidor
+    const validRooms = new Set(); /* */
     const bannedUsers = new Map(); // Map(nomeDoUsuario, { banUntil: timestamp, reason: 'motivo' })
 
     // Função para adicionar mensagem de sistema no chat (para todos)
     function addSystemMessage(msg) {
-      const chatLog = document.getElementById('chatLog');
+      const chatLog = document.getElementById('chatLog'); /* */
       const p = document.createElement('p');
       p.classList.add('system-message');
       p.textContent = msg;
       chatLog.appendChild(p);
-      chatLog.scrollTop = chatLog.scrollHeight;
+      chatLog.scrollTop = chatLog.scrollHeight; /* */
+      // === CORREÇÃO DO BUG: Processa mensagens de sistema para atualizar validRooms ===
+      const roomCodeMatch = msg.match(/\[Sistema: Código da Sala \((\w{4})\)\]/); /* */
+      if (roomCodeMatch && roomCodeMatch[1]) {
+          const newRoomCode = roomCodeMatch[1];
+          validRooms.add(newRoomCode); /* */
+          console.log(`[DEBUG] Sala ${newRoomCode} adicionada a validRooms globalmente.`);
+      }
     }
 
     // Função para adicionar mensagem privada (apenas para o usuário atual)
     function addPrivateMessage(msg, isWarning = false) {
-      const chatLog = document.getElementById('chatLog');
+      const chatLog = document.getElementById('chatLog'); /* */
       const p = document.createElement('p');
       p.classList.add('private-message');
       if (isWarning) {
-        p.classList.add('warning-message');
+        p.classList.add('warning-message'); /* */
       }
       p.textContent = `[Você]: ${msg}`;
       chatLog.appendChild(p);
-      chatLog.scrollTop = chatLog.scrollHeight;
+      chatLog.scrollTop = chatLog.scrollHeight; /* */
     }
 
     // Função para adicionar mensagem de chat normal (simula broadcast para todos)
     function addChatMessage(sender, message) {
-      const chatLog = document.getElementById('chatLog');
+      const chatLog = document.getElementById('chatLog'); /* */
       const p = document.createElement('p');
       p.textContent = `${sender}: ${message}`;
       chatLog.appendChild(p);
-      chatLog.scrollTop = chatLog.scrollHeight;
+      chatLog.scrollTop = chatLog.scrollHeight; /* */
     }
 
     // Função para atualizar participantes
     function updateParticipantList() {
-      const list = document.getElementById('participantList');
+      const list = document.getElementById('participantList'); /* */
       list.innerHTML = '';
       if (participants.length === 0) {
-        list.textContent = 'Nenhum participante na sala.';
+        list.textContent = 'Nenhum participante na sala.'; /* */
         return;
       }
       participants.forEach(p => {
@@ -471,16 +491,16 @@
         else if (p.isMod) role = '(mod)';
         div.textContent = `${p.name} ${role}`;
         list.appendChild(div);
-      });
+      }); /* */
     }
 
     // Função atualizar playlist
     function updatePlaylist() {
-      const list = document.getElementById('playlistItems');
+      const list = document.getElementById('playlistItems'); /* */
       list.innerHTML = '';
       if (playlist.length === 0) {
         list.textContent = 'Playlist vazia.';
-        return;
+        return; /* */
       }
       playlist.forEach(item => {
         const div = document.createElement('div');
@@ -492,511 +512,650 @@
         div.appendChild(span);
         div.appendChild(small);
         list.appendChild(div);
-      });
+      }); /* */
     }
 
     // Mostrar modais
     document.getElementById('chooseMediaBtn').onclick = () => {
-      document.getElementById('fileMenuModal').style.display = 'flex';
+      document.getElementById('fileMenuModal').style.display = 'flex'; /* */
     };
 
     document.getElementById('showParticipantsBtn').onclick = () => {
       updateParticipantList();
       document.getElementById('participantListModal').style.display = 'flex';
-    };
-
+    }; /* */
     document.getElementById('showPlaylistBtn').onclick = () => {
       updatePlaylist();
       document.getElementById('playlistModal').style.display = 'flex';
-    };
-
+    }; /* */
     // Escolher arquivo do dispositivo
     document.getElementById('selectFileBtn').onclick = () => {
-      const input = document.createElement('input');
+      const input = document.createElement('input'); /* */
       input.type = 'file';
       input.accept = 'video/*,audio/*';
       input.onchange = () => {
-        const file = input.files[0];
+        const file = input.files[0]; /* */
         if (file) {
           const url = URL.createObjectURL(file);
-          playAndBroadcast(url, 'arquivo', file.name);
+          playAndBroadcast(url, 'arquivo', file.name); /* */
           document.getElementById('fileMenuModal').style.display = 'none';
         }
       };
       input.click();
-    };
+    }; /* */
 
     // Inserir link
     document.getElementById('insertLinkBtn').onclick = () => {
-      const url = prompt('Insira o link do vídeo ou áudio:');
+      const url = prompt('Insira o link do vídeo, áudio ou live (YouTube, Twitch, Vimeo, DailyMotion, SoundCloud):'); /* */
       if (!url) return;
-      const extOK = /\.(mp4|webm|ogg|mp3|wav)(\?.*)?$/.test(url);
-      if (!extOK && !url.startsWith('https://')) {
-        alert('Link inválido');
-        return;
+
+      let mediaType = 'link';
+      let mediaName = 'Link Externo';
+      let processedUrl = url;
+      let isValidEmbedOrDirectLink = false; // Flag para rastrear se o link é válido
+
+      const youtubeMatch = url.match(/(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+      const twitchMatch = url.match(/(?:twitch\.tv\/([a-zA-Z0-9_]+)(?:\/videos\/(\d+))?)/);
+      const vimeoMatch = url.match(/(?:vimeo\.com\/(?:video\/)?([0-9]+))/);
+      const dailymotionMatch = url.match(/(?:dailymotion\.com\/(?:video|hub)\/([a-zA-Z0-9]+))/);
+      const soundcloudMatch = url.match(/(?:soundcloud\.com|snd\.sc)\/(.*)/);
+      const directMediaMatch = /\.(mp4|webm|ogg|mp3|wav)(\?.*)?$/i.test(url);
+
+
+      if (youtubeMatch) {
+          processedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1&controls=1`; // CORRIGIDO: URL correta para embed do YouTube
+          mediaName = 'YouTube Video';
+          mediaType = 'youtube';
+          isValidEmbedOrDirectLink = true;
+      } else if (twitchMatch) {
+          const channel = twitchMatch[1];
+          const videoId = twitchMatch[2];
+          if (videoId) { // Twitch VOD
+              processedUrl = `https://player.twitch.tv/?video=${videoId}&parent=${window.location.hostname}&autoplay=true`;
+              mediaName = 'Twitch VOD';
+              mediaType = 'twitch_vod';
+          } else { // Twitch Live Stream
+              processedUrl = `https://player.twitch.tv/?channel=${channel}&parent=${window.location.hostname}&autoplay=true`;
+              mediaName = `Twitch Live: ${channel}`;
+              mediaType = 'twitch_live';
+          }
+          isValidEmbedOrDirectLink = true;
+      } else if (vimeoMatch) {
+          processedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`;
+          mediaName = 'Vimeo Video';
+          mediaType = 'vimeo';
+          isValidEmbedOrDirectLink = true;
+      } else if (dailymotionMatch) {
+          processedUrl = `https://www.dailymotion.com/embed/video/${dailymotionMatch[1]}?autoplay=1`;
+          mediaName = 'DailyMotion Video';
+          mediaType = 'dailymotion';
+          isValidEmbedOrDirectLink = true;
+      } else if (soundcloudMatch) {
+          mediaName = 'SoundCloud Audio';
+          mediaType = 'soundcloud';
+          // processedUrl permanece o URL original, pois playAndBroadcast irá construir o embed
+          isValidEmbedOrDirectLink = true;
+      } else if (directMediaMatch) { // Arquivo de vídeo/áudio direto
+          mediaName = url.split('/').pop().split('?')[0];
+          mediaType = 'direct_media'; // Novo tipo para clareza
+          isValidEmbedOrDirectLink = true;
+      } else if (url.startsWith('https://') || url.startsWith('http://')) { // Permite outros links http/https, mas com aviso
+          addPrivateMessage('Aviso: O link inserido não é um formato de mídia reconhecido (vídeo/áudio direto ou serviço embed). Pode não funcionar como esperado.', true);
+          mediaName = url; // Usa o URL completo como nome
+          mediaType = 'unknown_link';
+          isValidEmbedOrDirectLink = true;
       }
-      playAndBroadcast(url, 'link', url.split('/').pop().split('?')[0]);
+
+      if (!isValidEmbedOrDirectLink) {
+          alert('Link inválido. Por favor, insira um link direto de mídia ou de um serviço suportado (YouTube, Twitch, Vimeo, DailyMotion, SoundCloud).');
+          return;
+      }
+
+      playAndBroadcast(processedUrl, mediaType, mediaName);
       document.getElementById('fileMenuModal').style.display = 'none';
     };
 
     // Compartilhar tela
     document.getElementById('shareScreenBtn').onclick = async () => {
       try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-        const video = document.getElementById('mediaPlayer');
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }); /* */
+        const mediaPlayerContainer = document.getElementById('mediaPlayerContainer');
+        mediaPlayerContainer.innerHTML = ''; // Limpa o conteúdo
+        const video = document.createElement('video');
+        video.id = 'mediaPlayer'; // Mantém o ID para CSS
+        video.controls = true;
+        video.autoplay = true;
         video.srcObject = stream;
-        video.play();
+        mediaPlayerContainer.appendChild(video);
+        
         // Simular broadcast para todos (no real app, enviaria o stream para todos)
-        broadcastMedia('tela', 'Compartilhamento de tela');
+        broadcastMedia('tela', 'Compartilhamento de tela'); /* */
         document.getElementById('fileMenuModal').style.display = 'none';
       } catch (err) {
-        alert('Erro ao compartilhar tela: ' + err);
+        alert('Erro ao compartilhar tela: ' + err); /* */
       }
     };
 
     // Reseta player antes de tocar nova mídia
     function resetPlayer() {
-      const player = document.getElementById('mediaPlayer');
-      player.pause();
-      player.src = ''; // Limpa o src
-      player.srcObject = null; // Limpa o srcObject (para streams)
-      player.load();
+      const mediaPlayerContainer = document.getElementById('mediaPlayerContainer');
+      mediaPlayerContainer.innerHTML = ''; // Remove qualquer player existente (video ou iframe)
+      const video = document.createElement('video'); // Recria o elemento video padrão
+      video.id = 'mediaPlayer';
+      video.controls = true;
+      video.autoplay = true; // Mantém autoplay, que pode ser controlado pelo usuário
+      mediaPlayerContainer.appendChild(video);
     }
 
     // Função que toca e adiciona na playlist, simulando broadcast
     function playAndBroadcast(url, type, name) {
-      resetPlayer(); // Chamar resetPlayer antes de carregar nova mídia
-      const player = document.getElementById('mediaPlayer');
-      player.src = url;
-      player.play();
-      // Atualiza playlist
-      playlist.push({name, type, addedBy: myName});
-      updatePlaylist();
-      // Simular broadcast para participantes (em app real, enviar via WebSocket)
-      broadcastMedia(type, name);
+        resetPlayer(); // Chamar resetPlayer antes de carregar nova mídia
+
+        const mediaPlayerContainer = document.getElementById('mediaPlayerContainer');
+        const videoPlayer = document.getElementById('mediaPlayer'); // O player de vídeo nativo
+
+        if (type === 'youtube' || type === 'twitch_live' || type === 'twitch_vod' || type === 'vimeo' || type === 'dailymotion') {
+            const iframe = document.createElement('iframe');
+            iframe.id = 'externalPlayer'; // Novo ID para o iframe
+            iframe.src = url;
+            iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+            iframe.allowFullscreen = true;
+            iframe.setAttribute('frameborder', '0');
+            
+            mediaPlayerContainer.innerHTML = ''; // Limpa o player de vídeo nativo
+            mediaPlayerContainer.appendChild(iframe);
+        } else if (type === 'soundcloud') {
+            const iframe = document.createElement('iframe');
+            iframe.id = 'externalPlayer';
+            iframe.src = `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%23ff5500&auto_play=true&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`;
+            iframe.height = '166'; // Altura típica do player SoundCloud
+            iframe.scrolling = 'no';
+            iframe.frameBorder = 'no';
+            iframe.allow = 'autoplay';
+            
+            mediaPlayerContainer.innerHTML = '';
+            mediaPlayerContainer.appendChild(iframe);
+        }
+        else {
+            videoPlayer.src = url; /* */
+            videoPlayer.play();
+        }
+
+        // Atualiza playlist
+        playlist.push({name, type, addedBy: myName, url}); // Armazena a URL original para sincronização
+        updatePlaylist(); /* */
+        
+        // Simular broadcast para participantes (em app real, enviar via WebSocket)
+        broadcastMedia(url, type, name); /* */
     }
 
     // Simula broadcast de mídia (placeholder)
-    function broadcastMedia(type, name) {
-      console.log(`[Broadcast] ${myName} adicionou ${name} (${type})`);
+    function broadcastMedia(url, type, name) {
+      console.log(`[Broadcast] ${myName} adicionou ${name} (${type}) com URL: ${url}`); /* */
+      // Em um app real, esta função enviaria a URL e o tipo da mídia
+      // para um servidor via WebSocket, que então retransmitiria para todos
+      // os outros clientes na mesma sala. Cada cliente chamaria
+      // playAndBroadcast(url, type, name) para sincronizar o player.
     }
+
+    // Simula o recebimento de mídia por outros usuários (apenas para debug/exemplo)
+    function receiveMediaBroadcast(url, type, name) {
+        console.log(`[Recebido] Recebendo mídia: ${name} (${type}) com URL: ${url}`);
+        // Em um app real, esta função seria chamada quando um cliente recebe
+        // a informação de nova mídia do servidor.
+        playAndBroadcast(url, type, name); // Outros clientes reproduzem a mesma mídia
+    }
+
 
     // Função para processar o link de convite na URL
     function processInviteLink() {
-        const urlParams = new URLSearchParams(window.location.search);
+        const urlParams = new URLSearchParams(window.location.search); /* */
         const code = urlParams.get('CODE');
         if (code) {
-            document.getElementById('roomCode').value = code;
+            document.getElementById('roomCode').value = code; /* */
             // Tenta juntar automaticamente se já tiver nome, caso contrário, espera input
-            // Se você quiser que o usuário apenas veja o código, mas ainda clique em 'Entrar', remova a linha abaixo.
-            // document.getElementById('joinRoom').click();
+            // document.getElementById('joinRoom').click(); /* */
+            // Removido para forçar o clique em "Entrar na Sala"
         }
     }
 
     // Criar sala
     document.getElementById('createRoom').onclick = () => {
-      isCreatingRoom = true;
+      isCreatingRoom = true; /* */
       roomID = Math.random().toString(36).substring(2, 6).toUpperCase();
       validRooms.add(roomID); // Adiciona o novo ID à lista de salas válidas
-      isAdmin = true;
+      isAdmin = true; /* */
       document.getElementById('menuSetup').style.display = 'none';
       document.getElementById('namePrompt').style.display = 'flex';
     };
 
     // Entrar sala
     document.getElementById('joinRoom').onclick = () => {
-      isCreatingRoom = false;
+      isCreatingRoom = false; /* */
       isAdmin = false; // Quem entra não é admin por padrão
-      const inputRoomCode = document.getElementById('roomCode').value.trim().toUpperCase();
+      const inputRoomCode = document.getElementById('roomCode').value.trim().toUpperCase(); /* */
       if (!inputRoomCode) {
         alert('Por favor, insira o código da sala.');
-        return;
+        return; /* */
       }
       if (!validRooms.has(inputRoomCode)) {
-        alert(`Sala "${inputRoomCode}" não existe ou foi deletada.`);
+        alert(`Sala "${inputRoomCode}" não existe ou foi deletada.`); /* */
         document.getElementById('roomCode').value = ''; // Limpa o campo
-        return;
+        return; /* */
       }
       roomID = inputRoomCode; // Define o roomID para a sala que está sendo acessada
-      document.getElementById('menuSetup').style.display = 'none';
+      document.getElementById('menuSetup').style.display = 'none'; /* */
       document.getElementById('namePrompt').style.display = 'flex';
     };
 
     // Confirmar entrada na sala
     document.getElementById('enterRoom').onclick = () => {
-      myName = document.getElementById('nickname').value.trim();
+      myName = document.getElementById('nickname').value.trim(); /* */
       if (!myName) {
         alert('Por favor, insira seu nome de usuário.');
-        return;
+        return; /* */
       }
 
       // Verifica se o usuário está banido
-      const banInfo = bannedUsers.get(myName);
+      const banInfo = bannedUsers.get(myName); /* */
       if (banInfo && banInfo.banUntil > Date.now()) {
-        const remainingTime = Math.ceil((banInfo.banUntil - Date.now()) / (1000 * 60)); // Minutos
+        const remainingTime = Math.ceil((banInfo.banUntil - Date.now()) / (1000 * 60)); /* */
+        // Minutos
         alert(`Você está banido por ${remainingTime} minutos. Motivo: ${banInfo.reason || 'Nenhum.'}`);
-        return;
+        return; /* */
       }
 
       if (isCreatingRoom) { // Se está criando a sala (é o administrador)
-        participants.push({name: myName, isAdmin: true, isMod: false});
+        participants.push({name: myName, isAdmin: true, isMod: false}); /* */
         alert(`Sala criada! Código: ${roomID}\nVocê é o administrador.`);
         document.getElementById('namePrompt').style.display = 'none';
         document.getElementById('mainUI').style.display = 'flex';
         updateParticipantList();
         updatePlaylist();
-        addSystemMessage(`[Sistema: Código da Sala (${roomID})]`);
-        addPrivateMessage(`Bem-vindo, ${myName}! Você é o administrador.`);
+        addSystemMessage(`[Sistema: Código da Sala (${roomID})]`); /* */
+        // Adiciona o código da sala ao chat para "sincronizar"
+        addPrivateMessage(`Bem-vindo, ${myName}! Você é o administrador.`); /* */
       } else { // Se está tentando entrar em uma sala
-        document.getElementById('namePrompt').style.display = 'none';
+        document.getElementById('namePrompt').style.display = 'none'; /* */
         document.getElementById('waitingApproval').style.display = 'flex';
         waitingForApproval = true;
         document.getElementById('memeSound').play(); // Toca o som para o solicitante
 
-        if (approvalTimeout) clearTimeout(approvalTimeout);
-        approvalTimeout = setTimeout(() => {
-          // Em um app real, o servidor enviaria uma notificação apenas para o admin da sala.
-          // Aqui, simulamos que apenas o "administrador" (se esta instância do navegador for o admin)
-          // verá o prompt de aprovação.
-          const adminInRoom = participants.find(p => p.isAdmin);
+        // Simulação da aprovação do administrador
+        // Em um app real, esta solicitação seria enviada ao admin via WebSocket
+        // e a aprovação/recusa viria como resposta.
+        
+        // Simula a presença de um administrador para que a caixa de diálogo de aprovação apareça
+        const adminInRoom = participants.find(p => p.isAdmin);
 
-          if (adminInRoom) {
-            const aprovado = confirm(`O participante ${myName} quer entrar na sala ${roomID}. Aceitar?`);
-            document.getElementById('waitingApproval').style.display = 'none';
+        if (adminInRoom) {
+            if (approvalTimeout) clearTimeout(approvalTimeout); /* */
+            // Simula o tempo que levaria para o admin "responder"
+            approvalTimeout = setTimeout(() => {
+                document.getElementById('waitingApproval').style.display = 'none';
+                waitingForApproval = false;
+                const aprovado = confirm(`O administrador da sala (${adminInRoom.name}) precisa aceitar sua solicitação.\nO participante ${myName} quer entrar na sala ${roomID}. Aceitar?`); /* */
+                
+                if (aprovado) {
+                    participants.push({name: myName, isAdmin: false, isMod: false});
+                    document.getElementById('mainUI').style.display = 'flex';
+                    updateParticipantList(); /* */
+                    updatePlaylist();
+                    addSystemMessage(`${myName} entrou na sala.`);
+                    addPrivateMessage(`Você foi aceito na sala ${roomID}!`);
+                } else {
+                    document.getElementById('rejectedNotice').style.display = 'flex'; /* */
+                    addPrivateMessage(`Sua solicitação para a sala ${roomID} foi recusada.`, true); // Mensagem de aviso
+                }
+            }, 3000); // Simula 3 segundos para o admin responder
+        } else {
+            // Se não há admin na simulação para aprovar
+            document.getElementById('waitingApproval').style.display = 'none'; /* */
             waitingForApproval = false;
-            if (aprovado) {
-              participants.push({name: myName, isAdmin: false, isMod: false});
-              document.getElementById('mainUI').style.display = 'flex';
-              updateParticipantList();
-              updatePlaylist();
-              addSystemMessage(`${myName} entrou na sala.`);
-              addPrivateMessage(`Você foi aceito na sala ${roomID}!`);
-            } else {
-              document.getElementById('rejectedNotice').style.display = 'flex';
-              addPrivateMessage(`Sua solicitação para a sala ${roomID} foi recusada.`, true); // Mensagem de aviso
-            }
-          } else {
-            // Se não há admin na sala (simulação), ou esta instância não é o admin, recusa automaticamente.
-             document.getElementById('waitingApproval').style.display = 'none';
-             waitingForApproval = false;
-             document.getElementById('rejectedNotice').style.display = 'flex';
-             addPrivateMessage(`Sua solicitação para a sala ${roomID} foi recusada (sem administrador online para aprovar).`, true);
-          }
-        }, 3000);
+            document.getElementById('rejectedNotice').style.display = 'flex';
+            addPrivateMessage(`Sua solicitação para a sala ${roomID} foi recusada (sem administrador online para aprovar).`, true); /* */
+        }
       }
-    };
-
+    }; /* */
     // Botão tentar novamente
     document.getElementById('retryEntryBtn').onclick = () => {
-      document.getElementById('rejectedNotice').style.display = 'none';
+      document.getElementById('rejectedNotice').style.display = 'none'; /* */
       document.getElementById('menuSetup').style.display = 'flex'; // Volta para a tela inicial para inserir um novo código ou criar sala
-      document.getElementById('roomCode').value = ''; // Limpa o código da sala
-      document.getElementById('nickname').value = ''; // Limpa o nickname
+      document.getElementById('roomCode').value = ''; /* */
+      // Limpa o código da sala
+      document.getElementById('nickname').value = ''; /* */
+      // Limpa o nickname
       document.getElementById('roomCode').focus();
-    };
-
-
+    }; /* */
     // === FUNÇÃO DE COMANDOS ===
     function handleCommand(message) {
-        const parts = message.split(' ');
-        const command = parts[0].toLowerCase(); // Ex: /clear
-        const targetName = parts[1]; // Ex: (Nome do usuario)
-        const restOfMessage = parts.slice(2).join(' '); // Mensagem ou tempo
+        const parts = message.split(' '); /* */
+        const command = parts[0].toLowerCase(); // Ex: /clear /* */
+        const targetName = parts[1]; /* */
+        // Ex: (Nome do usuario)
+        const restOfMessage = parts.slice(2).join(' '); /* */
+        // Mensagem ou tempo
 
-        const currentUser = participants.find(p => p.name === myName);
+        const currentUser = participants.find(p => p.name === myName); /* */
         const canAdmin = currentUser && currentUser.isAdmin;
-        const canMod = currentUser && (currentUser.isAdmin || currentUser.isMod);
-
+        const canMod = currentUser && (currentUser.isAdmin || currentUser.isMod); /* */
         switch (command) {
             // --- Comandos de Admin ---
             case '/clear':
             case '/clearall':
-                if (canAdmin) {
-                    document.getElementById('chatLog').innerHTML = ''; // Limpa o chat
-                    addSystemMessage('O histórico do chat foi limpo por um administrador.');
+                if (canAdmin || canMod) { // Mods também podem limpar o chat
+                    document.getElementById('chatLog').innerHTML = ''; /* */
+                    // Limpa o chat
+                    addSystemMessage('O histórico do chat foi limpo por um administrador/moderador.'); /* */
                 } else {
-                    addPrivateMessage('Você não tem permissão para usar este comando.', true);
+                    addPrivateMessage('Você não tem permissão para usar este comando.', true); /* */
                 }
-                return true; // Comando processado
+                return true; /* */
+            // Comando processado
 
             case '/kick':
-                if (canAdmin) {
+                if (canAdmin || canMod) { // Mods também podem kickar
                     if (!targetName) {
-                        addPrivateMessage('Uso: /Kick (Nome do usuario) (Mensagem)', true);
+                        addPrivateMessage('Uso: /Kick (Nome do usuario) (Mensagem)', true); /* */
                         return true;
                     }
-                    const kickedUserIndex = participants.findIndex(p => p.name === targetName);
+                    const kickedUserIndex = participants.findIndex(p => p.name === targetName); /* */
                     if (kickedUserIndex !== -1) {
-                        const kickedUser = participants[kickedUserIndex];
+                        const kickedUser = participants[kickedUserIndex]; /* */
+                        // Não permite kickar o próprio admin ou outro admin/mod se não for admin
+                        if (kickedUser.isAdmin && !canAdmin) {
+                            addPrivateMessage('Você não pode expulsar outro administrador.', true);
+                            return true;
+                        }
+                         if (kickedUser.isMod && !canAdmin && canMod && kickedUser.name !== myName) {
+                            addPrivateMessage('Moderadores não podem expulsar outros moderadores.', true);
+                            return true;
+                        }
+                        if (kickedUser.name === myName) {
+                             addPrivateMessage('Você não pode expulsar a si mesmo.', true);
+                             return true;
+                        }
+
                         participants.splice(kickedUserIndex, 1);
                         updateParticipantList();
-                        addSystemMessage(`${kickedUser.name} foi expulso da sala. Motivo: ${restOfMessage || 'Nenhum.'}`);
-                        // Em um app real, o usuário 'kickedUser.name' seria forçado a sair.
+                        addSystemMessage(`${kickedUser.name} foi expulso da sala. Motivo: ${restOfMessage || 'Nenhum.'}`); /* */
+                        // Em um app real, o usuário 'kickedUser.name' seria forçado a sair. /* */
                         // Aqui, simulamos se ele fosse a instância atual.
                         if (myName === kickedUser.name) {
-                            alert('Você foi expulso da sala!');
+                            alert('Você foi expulso da sala!'); /* */
                             window.location.reload(); // Volta para o menu principal
                         }
                     } else {
-                        addPrivateMessage(`Usuário "${targetName}" não encontrado.`, true);
+                        addPrivateMessage(`Usuário "${targetName}" não encontrado.`, true); /* */
                     }
                 } else {
-                    addPrivateMessage('Você não tem permissão para usar este comando.', true);
+                    addPrivateMessage('Você não tem permissão para usar este comando.', true); /* */
                 }
-                return true;
-
+                return true; /* */
             case '/ban':
                 if (canAdmin) {
                     if (!targetName || !restOfMessage) {
-                        addPrivateMessage('Uso: /Ban (Nome do usuario) (Mensagem) (Tempo)', true);
+                        addPrivateMessage('Uso: /Ban (Nome do usuario) (Mensagem) (Tempo ex: 10m, 5h, 30s)', true); /* */
                         return true;
                     }
-                    let [reason, timeStr] = restOfMessage.split(/ (?=\d)/); // Separa motivo do tempo
-                    if (!timeStr) { // Se não encontrou tempo separado, assume que o último argumento é o tempo
-                        timeStr = reason.split(' ').pop();
-                        reason = reason.split(' ').slice(0, -1).join(' ');
-                    }
+                    // Expressão regular para separar o motivo do tempo
+                    const match = restOfMessage.match(/(.*)\s+(\d+[hms])$/i);
+                    let reason = 'Nenhum.';
+                    let timeStr = '';
 
-                    let banDurationMs = 0;
-                    const timeValue = parseInt(timeStr.match(/\d+/));
-                    const timeUnit = timeStr.match(/[hms]/i); // h=horas, m=minutos, s=segundos
-
-                    if (timeValue && timeUnit) {
-                        if (timeUnit[0].toLowerCase() === 'm') banDurationMs = timeValue * 60 * 1000;
-                        else if (timeUnit[0].toLowerCase() === 'h') banDurationMs = timeValue * 60 * 60 * 1000;
-                        else if (timeUnit[0].toLowerCase() === 's') banDurationMs = timeValue * 1000;
+                    if (match) {
+                        reason = match[1].trim();
+                        timeStr = match[2];
                     } else {
-                        addPrivateMessage('Formato de tempo inválido (ex: 10m, 5h, 30s).', true);
+                        // Se não encontrou o padrão com tempo no final, tenta parsear o último elemento como tempo
+                        const lastPart = parts[parts.length - 1];
+                        if (lastPart.match(/\d+[hms]/i)) {
+                            timeStr = lastPart;
+                            reason = parts.slice(2, -1).join(' ').trim();
+                        } else {
+                            addPrivateMessage('Formato de comando /ban inválido. Uso: /Ban (Nome) (Motivo) (Tempo ex: 10m, 5h, 30s)', true);
+                            return true;
+                        }
+                    }
+
+                    let banDurationMs = 0; /* */
+                    const timeValue = parseInt(timeStr.match(/\d+/)[0]);
+                    const timeUnit = timeStr.match(/[hms]/i)[0]; // h=horas, m=minutos, s=segundos
+
+                    if (timeUnit.toLowerCase() === 'm') banDurationMs = timeValue * 60 * 1000; /* */
+                    else if (timeUnit.toLowerCase() === 'h') banDurationMs = timeValue * 60 * 60 * 1000; /* */
+                    else if (timeUnit.toLowerCase() === 's') banDurationMs = timeValue * 1000; /* */
+                    else {
+                        addPrivateMessage('Formato de tempo inválido (ex: 10m, 5h, 30s).', true); /* */
                         return true;
                     }
 
-                    const banUntil = Date.now() + banDurationMs;
+                    const banUntil = Date.now() + banDurationMs; /* */
                     bannedUsers.set(targetName, { banUntil, reason: reason || 'Nenhum.' });
 
-                    const bannedUserIndex = participants.findIndex(p => p.name === targetName);
+                    const bannedUserIndex = participants.findIndex(p => p.name === targetName); /* */
                     if (bannedUserIndex !== -1) {
-                        participants.splice(bannedUserIndex, 1); // Remove da lista de participantes ativos
-                        updateParticipantList();
+                        participants.splice(bannedUserIndex, 1); /* */
+                        // Remove da lista de participantes ativos
+                        updateParticipantList(); /* */
                     }
 
-                    addSystemMessage(`${targetName} foi banido da sala por ${timeValue}${timeUnit[0].toLowerCase()}. Motivo: ${reason || 'Nenhum.'}`);
+                    addSystemMessage(`${targetName} foi banido da sala por ${timeValue}${timeUnit.toLowerCase()}. Motivo: ${reason || 'Nenhum.'}`); /* */
                     if (myName === targetName) {
-                        alert('Você foi banido da sala!');
+                        alert('Você foi banido da sala!'); /* */
                         window.location.reload();
                     }
                 } else {
-                    addPrivateMessage('Você não tem permissão para usar este comando.', true);
+                    addPrivateMessage('Você não tem permissão para usar este comando.', true); /* */
                 }
-                return true;
-
+                return true; /* */
             case '/reload':
             case '/reloadall':
                 if (canAdmin) {
-                    addSystemMessage('O administrador iniciou um recarregamento da sala. A página será atualizada para todos!');
+                    addSystemMessage('O administrador iniciou um recarregamento da sala. A página será atualizada para todos!'); /* */
                     setTimeout(() => window.location.reload(), 2000); // Dá um tempo para a mensagem aparecer
                 } else {
-                    addPrivateMessage('Você não tem permissão para usar este comando.', true);
+                    addPrivateMessage('Você não tem permissão para usar este comando.', true); /* */
                 }
-                return true;
-
+                return true; /* */
             case '/admin':
                 if (canAdmin) {
                     if (!targetName) {
-                        addPrivateMessage('Uso: /Admin (Nome do usuario)', true);
+                        addPrivateMessage('Uso: /Admin (Nome do usuario)', true); /* */
                         return true;
                     }
-                    const targetParticipant = participants.find(p => p.name === targetName);
+                    const targetParticipant = participants.find(p => p.name === targetName); /* */
                     if (targetParticipant) {
-                        targetParticipant.isAdmin = true;
+                        targetParticipant.isAdmin = true; /* */
                         targetParticipant.isMod = false; // Remove mod se for admin
-                        updateParticipantList();
+                        updateParticipantList(); /* */
                         addSystemMessage(`${targetName} agora é um administrador!`);
                     } else {
-                        addPrivateMessage(`Usuário "${targetName}" não encontrado na sala.`, true);
+                        addPrivateMessage(`Usuário "${targetName}" não encontrado na sala.`, true); /* */
                     }
                 } else {
-                    addPrivateMessage('Você não tem permissão para usar este comando.', true);
+                    addPrivateMessage('Você não tem permissão para usar este comando.', true); /* */
                 }
-                return true;
-
+                return true; /* */
             case '/revoke-admin':
                 if (canAdmin) {
                     if (!targetName) {
-                        addPrivateMessage('Uso: /Revoke-Admin (Nome do usuario)', true);
+                        addPrivateMessage('Uso: /Revoke-Admin (Nome do usuario)', true); /* */
                         return true;
                     }
-                    const targetParticipant = participants.find(p => p.name === targetName);
+                    const targetParticipant = participants.find(p => p.name === targetName); /* */
                     if (targetParticipant && targetParticipant.name !== myName) { // Admin não pode remover seus próprios privilégios
-                        targetParticipant.isAdmin = false;
+                        targetParticipant.isAdmin = false; /* */
                         updateParticipantList();
                         addSystemMessage(`${targetName} não é mais um administrador.`);
                     } else if (targetParticipant && targetParticipant.name === myName) {
-                        addPrivateMessage('Você não pode remover seus próprios privilégios de administrador. Peça a outro administrador.', true);
+                        addPrivateMessage('Você não pode remover seus próprios privilégios de administrador. Peça a outro administrador.', true); /* */
                     }
                     else {
-                        addPrivateMessage(`Usuário "${targetName}" não encontrado na sala.`, true);
+                        addPrivateMessage(`Usuário "${targetName}" não encontrado na sala.`, true); /* */
                     }
                 } else {
-                    addPrivateMessage('Você não tem permissão para usar este comando.', true);
+                    addPrivateMessage('Você não tem permissão para usar este comando.', true); /* */
                 }
-                return true;
-
+                return true; /* */
             case '/mod':
                 if (canAdmin) {
                     if (!targetName) {
-                        addPrivateMessage('Uso: /Mod (Nome do usuario)', true);
+                        addPrivateMessage('Uso: /Mod (Nome do usuario)', true); /* */
                         return true;
                     }
-                    const targetParticipant = participants.find(p => p.name === targetName);
+                    const targetParticipant = participants.find(p => p.name === targetName); /* */
                     if (targetParticipant) {
-                        targetParticipant.isMod = true;
+                        targetParticipant.isMod = true; /* */
                         updateParticipantList();
                         addSystemMessage(`${targetName} agora é um moderador!`);
                     } else {
-                        addPrivateMessage(`Usuário "${targetName}" não encontrado na sala.`, true);
+                        addPrivateMessage(`Usuário "${targetName}" não encontrado na sala.`, true); /* */
                     }
                 } else {
-                    addPrivateMessage('Você não tem permissão para usar este comando.', true);
+                    addPrivateMessage('Você não tem permissão para usar este comando.', true); /* */
                 }
-                return true;
-
+                return true; /* */
             case '/revoke-mod':
                 if (canAdmin) {
                     if (!targetName) {
-                        addPrivateMessage('Uso: /Revoke-Mod (Nome do usuario)', true);
+                        addPrivateMessage('Uso: /Revoke-Mod (Nome do usuario)', true); /* */
                         return true;
                     }
-                    const targetParticipant = participants.find(p => p.name === targetName);
+                    const targetParticipant = participants.find(p => p.name === targetName); /* */
                     if (targetParticipant) {
-                        targetParticipant.isMod = false;
+                        targetParticipant.isMod = false; /* */
                         updateParticipantList();
                         addSystemMessage(`${targetName} não é mais um moderador.`);
                     } else {
-                        addPrivateMessage(`Usuário "${targetName}" não encontrado na sala.`, true);
+                        addPrivateMessage(`Usuário "${targetName}" não encontrado na sala.`, true); /* */
                     }
                 } else {
-                    addPrivateMessage('Você não tem permissão para usar este comando.', true);
+                    addPrivateMessage('Você não tem permissão para usar este comando.', true); /* */
                 }
-                return true;
-
+                return true; /* */
             // --- Comandos para Todos os Usuários ---
             case '/help':
-                let helpMessage = "Comandos disponíveis:\n";
+                let helpMessage = "Comandos disponíveis:\n"; /* */
                 helpMessage += "/Version - Exibe a versão.\n";
-                helpMessage += "/Admin - Mostra quem é o admin da sala.\n";
+                helpMessage += "/Admin - Mostra quem é o admin da sala.\n"; /* */
                 helpMessage += "/sendlink - Envia um link privado para o admin.\n";
-                helpMessage += "/exit - Sai da sala.\n";
+                helpMessage += "/code - Mostra o código da sala.\n"; /* */
+                // Novo comando
+                helpMessage += "/exit - Sai da sala.\n"; /* */
                 if (canAdmin) {
-                    helpMessage += "\nComandos de Admin:\n";
+                    helpMessage += "\nComandos de Admin:\n"; /* */
                     helpMessage += "/Clear All - Limpa o chat.\n";
-                    helpMessage += "/Kick (Nome) (Motivo) - Expulsa um usuário.\n";
-                    helpMessage += "/Ban (Nome) (Motivo) (Tempo) - Bane um usuário (ex: 10m, 2h).\n";
+                    helpMessage += "/Kick (Nome) (Motivo) - Expulsa um usuário.\n"; /* */
+                    helpMessage += "/Ban (Nome) (Motivo) (Tempo) - Bane um usuário (ex: 10m, 2h).\n"; /* */
                     helpMessage += "/reload all - Recarrega a página para todos.\n";
-                    helpMessage += "/Admin (Nome) - Concede admin a alguém.\n";
+                    helpMessage += "/Admin (Nome) - Concede admin a alguém.\n"; /* */
                     helpMessage += "/Revoke-Admin (Nome) - Remove admin de alguém.\n";
-                    helpMessage += "/Mod (Nome) - Concede moderador a alguém.\n";
+                    helpMessage += "/Mod (Nome) - Concede moderador a alguém.\n"; /* */
                     helpMessage += "/Revoke-Mod (Nome) - Remove moderador de alguém.\n";
-                    helpMessage += "/exitall - Tira todos da sala.\n";
+                    helpMessage += "/exitall - Tira todos da sala.\n"; /* */
                 } else if (canMod) {
-                    helpMessage += "\nComandos de Moderador:\n";
+                    helpMessage += "\nComandos de Moderador:\n"; /* */
                     helpMessage += "/Clear All - Limpa o chat.\n";
-                    helpMessage += "/Kick (Nome) (Motivo) - Expulsa um usuário.\n";
+                    helpMessage += "/Kick (Nome) (Motivo) - Expulsa um usuário.\n"; /* */
                     // Adicione outros comandos de mod aqui se houver
                 }
-                addPrivateMessage(helpMessage);
+                addPrivateMessage(helpMessage); /* */
                 return true;
 
             case '/version':
-                addPrivateMessage('Versão Beta ;-)');
+                addPrivateMessage('Versão Beta ;-)'); /* */
                 return true;
 
             case '/admin': // Comando /Admin para não-admins (mostra quem é o admin)
-                const currentAdmin = participants.find(p => p.isAdmin);
+                const currentAdmin = participants.find(p => p.isAdmin); /* */
                 if (currentAdmin) {
-                    addPrivateMessage(`O administrador da sala é: ${currentAdmin.name}`);
+                    addPrivateMessage(`O administrador da sala é: ${currentAdmin.name}`); /* */
                 } else {
-                    addPrivateMessage('Não há um administrador definido no momento.', true);
+                    addPrivateMessage('Não há um administrador definido no momento.', true); /* */
                 }
-                return true;
-
+                return true; /* */
             case '/sendlink':
-                const linkToSend = prompt('Digite o link que deseja enviar ao administrador:');
+                const linkToSend = prompt('Digite o link que deseja enviar ao administrador:'); /* */
                 if (linkToSend) {
-                    const currentAdmin = participants.find(p => p.isAdmin);
+                    const currentAdmin = participants.find(p => p.isAdmin); /* */
                     if (currentAdmin) {
                          // Simula o admin recebendo a mensagem privada
                         if (myName === currentAdmin.name) {
-                            addPrivateMessage(`LINK PRIVADO DO USUÁRIO ${myName}: ${linkToSend}`, true);
+                            addPrivateMessage(`LINK PRIVADO DO USUÁRIO ${myName}: ${linkToSend}`, true); /* */
                         } else {
-                            addPrivateMessage(`O link foi enviado para o administrador (${currentAdmin.name}).`);
+                            addPrivateMessage(`O link foi enviado para o administrador (${currentAdmin.name}).`); /* */
                         }
                     } else {
-                        addPrivateMessage('Não há um administrador online para receber o link.', true);
+                        addPrivateMessage('Não há um administrador online para receber o link.', true); /* */
                     }
                 }
-                return true;
-
+                return true; /* */
+            case '/code': // Novo comando /code
+                if (roomID) {
+                    addPrivateMessage(`O código da sala é: ${roomID}`); /* */
+                } else {
+                    addPrivateMessage('Você não está em uma sala ativa.', true); /* */
+                }
+                return true; /* */
             case '/exit':
-                addPrivateMessage('Você saiu da sala.');
+                addPrivateMessage('Você saiu da sala.'); /* */
                 setTimeout(() => window.location.reload(), 1000); // Redireciona para o menu principal
-                return true;
-
+                return true; /* */
             case '/exitall':
                 if (canAdmin) {
-                    addSystemMessage('O administrador encerrou a sessão. Todos serão redirecionados para o menu principal!');
+                    addSystemMessage('O administrador encerrou a sessão. Todos serão redirecionados para o menu principal!'); /* */
                     // Em um app real, o servidor enviaria um comando para todos os clientes
-                    setTimeout(() => window.location.reload(), 2000);
+                    setTimeout(() => window.location.reload(), 2000); /* */
                 } else {
-                    addPrivateMessage('Você não tem permissão para usar este comando.', true);
+                    addPrivateMessage('Você não tem permissão para usar este comando.', true); /* */
                 }
-                return true;
-
+                return true; /* */
             default:
                 // Se começar com / mas não for um comando reconhecido
                 if (message.startsWith('/')) {
-                    addPrivateMessage(`Comando desconhecido: ${command}. Digite /help para ver os comandos disponíveis.`, true);
+                    addPrivateMessage(`Comando desconhecido: ${command}. Digite /help para ver os comandos disponíveis.`, true); /* */
                     return true;
                 }
-                return false; // Não é um comando, processe como mensagem normal
+                return false; /* */
+            // Não é um comando, processe como mensagem normal
         }
     }
 
     // Sobrescrevendo a função sendMessage para incluir o tratamento de comandos
     function sendMessage() {
-      const input = document.getElementById('chatInput');
+      const input = document.getElementById('chatInput'); /* */
       let msg = input.value.trim();
       if (!msg) return;
 
       if (msg.length > 900) {
-        alert('Mensagem excede 900 caracteres.');
+        alert('Mensagem excede 900 caracteres.'); /* */
         return;
       }
 
       // Limpa input
-      input.value = '';
-
+      input.value = ''; /* */
       // Tenta processar como comando primeiro
       if (handleCommand(msg)) {
           // Se for um comando e foi processado, não adiciona como mensagem normal
-          return;
+          return; /* */
       }
 
       // Se não for um comando, adiciona mensagem normal
-      addChatMessage(myName, msg);
-
+      addChatMessage(myName, msg); /* */
       // Simula broadcast da mensagem para os outros participantes (apenas se não for comando)
-      broadcastChatMessage(myName, msg);
+      broadcastChatMessage(myName, msg); /* */
     }
 
     // Função para gerar e compartilhar o link da sala
     async function generateShareLink() {
         if (!roomID) {
-            alert('Você precisa estar em uma sala para compartilhar o código.');
+            alert('Você precisa estar em uma sala para compartilhar o código.'); /* */
             return;
         }
 
         // Substitua 'Player-HTML-CSS-JS.html' pelo nome real do seu arquivo HTML se for publicá-lo
-        const currentFile = window.location.pathname.split('/').pop() || 'Player-HTML-CSS-JS.html';
+        const currentFile = window.location.pathname.split('/').pop() || 'Player-HTML-CSS-JS.html'; /* */
         const shareLink = `${window.location.origin}/${currentFile}?CODE=${roomID}`;
 
         if (navigator.share) {
@@ -1004,43 +1163,41 @@
             try {
                 await navigator.share({
                     title: 'Entrar na Sala!',
-                    text: `Junte-se à minha sala! Código: ${roomID}`,
+                    text: `Junte-se à minha sala! Código: ${roomID}`, /* */
                     url: shareLink,
-                });
+                }); /* */
                 addPrivateMessage('Link de compartilhamento enviado com sucesso!', false);
             } catch (error) {
                 if (error.name !== 'AbortError') { // Ignora se o usuário cancelou
-                    addPrivateMessage(`Erro ao compartilhar link: ${error.message}`, true);
+                    addPrivateMessage(`Erro ao compartilhar link: ${error.message}`, true); /* */
                 }
             }
         } else {
             // Fallback para PC: Copiar para a área de transferência
             try {
-                await navigator.clipboard.writeText(shareLink);
-                addPrivateMessage('Código da sala copiado para a área de transferência! Compartilhe o link: ' + shareLink);
+                await navigator.clipboard.writeText(shareLink); /* */
+                addPrivateMessage('Código da sala copiado para a área de transferência! Compartilhe o link: ' + shareLink); /* */
             } catch (err) {
-                addPrivateMessage('Falha ao copiar o link. Por favor, copie manualmente: ' + shareLink, true);
+                addPrivateMessage('Falha ao copiar o link. Por favor, copie manualmente: ' + shareLink, true); /* */
             }
         }
     }
 
     // Eventos para enviar mensagem
-    document.getElementById('sendChatBtn').onclick = sendMessage;
+    document.getElementById('sendChatBtn').onclick = sendMessage; /* */
     document.getElementById('chatInput').addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
       }
-    });
-
+    }); /* */
     // Evento para o novo botão de compartilhar
-    document.getElementById('shareRoomCodeBtn').onclick = generateShareLink;
-
+    document.getElementById('shareRoomCodeBtn').onclick = generateShareLink; /* */
     // Garante que o rejectedNotice tenha display: flex
     document.getElementById('rejectedNotice').style.display = 'none'; // Define como none inicialmente
 
     // Chama a função para processar o link de convite quando a página carrega
-    document.addEventListener('DOMContentLoaded', processInviteLink);
+    document.addEventListener('DOMContentLoaded', processInviteLink); /* */
   </script>
 </body>
 </html>
