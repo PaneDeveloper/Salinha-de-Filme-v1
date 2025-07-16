@@ -430,11 +430,12 @@
     // Dados que serão sincronizados via localStorage
     let playlist = [];
     let participants = [];
-    let validRooms = new Set(); // Armazena todos os IDs de salas válidas
+    // let validRooms = new Set(); // REMOVIDO: Agora usamos a lista global myChatApp_allRooms
     let bannedUsers = new Map(); // Map(nomeDoUsuario, { banUntil: timestamp, reason: 'motivo' })
 
     const LOCAL_STORAGE_PREFIX = 'myChatApp_roomState_';
     const LOCAL_STORAGE_PENDING_REQUESTS = 'myChatApp_pendingJoinRequests';
+    const LOCAL_STORAGE_ALL_ROOMS = 'myChatApp_allRooms'; // Nova chave para todas as salas ativas
 
     // --- Funções de Sincronização com localStorage ---
     function saveRoomState(id, state) {
@@ -445,8 +446,7 @@
         const storedState = localStorage.getItem(LOCAL_STORAGE_PREFIX + id);
         if (storedState) {
             const state = JSON.parse(storedState);
-            // Reconstroi o Set e o Map
-            state.validRooms = new Set(state.validRooms);
+            // Reconstroi o Map (validRooms não é mais um Set aqui)
             state.bannedUsers = new Map(state.bannedUsers);
             return state;
         }
@@ -460,7 +460,7 @@
             roomID: roomID,
             participants: participants,
             playlist: playlist,
-            validRooms: Array.from(validRooms),
+            // validRooms: Array.from(validRooms), // REMOVIDO
             bannedUsers: Array.from(bannedUsers.entries())
         };
         saveRoomState(roomID, state);
@@ -471,7 +471,7 @@
         const state = loadRoomState(id);
         if (state) {
             // Atualiza apenas as variáveis que precisam ser sincronizadas
-            validRooms = state.validRooms;
+            // validRooms = new Set(state.validRooms); // REMOVIDO
             participants = state.participants; // Sincroniza a lista de participantes
             playlist = state.playlist; // Sincroniza a playlist
             bannedUsers = state.bannedUsers; // Sincroniza usuários banidos
@@ -494,6 +494,11 @@
         // Se o evento for para pedidos de entrada pendentes, e esta aba é a do admin
         if (event.key === LOCAL_STORAGE_PENDING_REQUESTS && isAdmin) {
             handleIncomingJoinRequest();
+        }
+        // Se a lista de todas as salas mudou (para o caso de uma sala ser criada ou deletada em outra aba)
+        if (event.key === LOCAL_STORAGE_ALL_ROOMS) {
+            console.log("[STORAGE EVENT] Lista de todas as salas mudou.");
+            // Não faz nada aqui, pois a lista só é verificada no momento de entrar ou criar.
         }
     });
 
@@ -555,13 +560,7 @@
       p.textContent = msg;
       chatLog.appendChild(p);
       chatLog.scrollTop = chatLog.scrollHeight;
-      const roomCodeMatch = msg.match(/\[Sistema: Código da Sala \((\w{4})\)\]/);
-      if (roomCodeMatch && roomCodeMatch[1]) {
-          const newRoomCode = roomCodeMatch[1];
-          validRooms.add(newRoomCode);
-          console.log(`[DEBUG] Sala ${newRoomCode} adicionada a validRooms globalmente.`);
-          updateRoomStateInLocalStorage(); // Atualiza o localStorage com o novo roomID
-      }
+      // Removido a lógica de adicionar validRooms aqui, pois já é tratado no createRoom
     }
 
     function addPrivateMessage(msg, isWarning = false) {
@@ -819,13 +818,14 @@
     document.getElementById('createRoom').onclick = () => {
       isCreatingRoom = true;
       roomID = Math.random().toString(36).substring(2, 6).toUpperCase();
-      // Ao criar a sala, adiciona ela globalmente (no localStorage)
-      let allRooms = JSON.parse(localStorage.getItem('myChatApp_allRooms') || '[]');
+      
+      // *** CORREÇÃO AQUI: Adicionar o roomID à lista global de salas ativas ***
+      let allRooms = JSON.parse(localStorage.getItem(LOCAL_STORAGE_ALL_ROOMS) || '[]');
       if (!allRooms.includes(roomID)) {
           allRooms.push(roomID);
-          localStorage.setItem('myChatApp_allRooms', JSON.stringify(allRooms));
+          localStorage.setItem(LOCAL_STORAGE_ALL_ROOMS, JSON.stringify(allRooms));
+          console.log(`[DEBUG] Nova sala ${roomID} adicionada à lista global de salas.`);
       }
-      validRooms.add(roomID); // Adiciona ao Set local também
       
       isAdmin = true;
       document.getElementById('menuSetup').style.display = 'none';
@@ -842,8 +842,8 @@
         return;
       }
 
-      // Verifica se a sala existe globalmente (no localStorage)
-      const allRooms = JSON.parse(localStorage.getItem('myChatApp_allRooms') || '[]');
+      // *** CORREÇÃO AQUI: Verificar a existência da sala na lista global ***
+      const allRooms = JSON.parse(localStorage.getItem(LOCAL_STORAGE_ALL_ROOMS) || '[]');
       if (!allRooms.includes(inputRoomCode)) {
         alert(`Sala "${inputRoomCode}" não existe ou foi deletada.`);
         document.getElementById('roomCode').value = '';
@@ -1311,9 +1311,7 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         processInviteLink();
-        // Carrega todas as salas válidas ao iniciar
-        const allRooms = JSON.parse(localStorage.getItem('myChatApp_allRooms') || '[]');
-        allRooms.forEach(id => validRooms.add(id));
+        // Não é mais necessário carregar validRooms aqui, pois LOCAL_STORAGE_ALL_ROOMS é a fonte da verdade.
     });
   </script>
 </body>
