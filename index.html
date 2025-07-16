@@ -430,25 +430,52 @@
     // Dados que serão sincronizados via localStorage
     let playlist = [];
     let participants = [];
-    // let validRooms = new Set(); // REMOVIDO: Agora usamos a lista global myChatApp_allRooms
     let bannedUsers = new Map(); // Map(nomeDoUsuario, { banUntil: timestamp, reason: 'motivo' })
 
     const LOCAL_STORAGE_PREFIX = 'myChatApp_roomState_';
     const LOCAL_STORAGE_PENDING_REQUESTS = 'myChatApp_pendingJoinRequests';
-    const LOCAL_STORAGE_ALL_ROOMS = 'myChatApp_allRooms'; // Nova chave para todas as salas ativas
+    const LOCAL_STORAGE_ALL_ROOMS = 'myChatApp_allRooms'; // Chave para todas as salas ativas
 
     // --- Funções de Sincronização com localStorage ---
+
+    // Função para obter a lista de todas as salas ativas
+    function getAllActiveRooms() {
+        try {
+            const storedRooms = localStorage.getItem(LOCAL_STORAGE_ALL_ROOMS);
+            return storedRooms ? JSON.parse(storedRooms) : [];
+        } catch (e) {
+            console.error("Erro ao ler myChatApp_allRooms do localStorage:", e);
+            return [];
+        }
+    }
+
+    // Função para salvar a lista de todas as salas ativas
+    function saveAllActiveRooms(roomsArray) {
+        try {
+            localStorage.setItem(LOCAL_STORAGE_ALL_ROOMS, JSON.stringify(roomsArray));
+        } catch (e) {
+            console.error("Erro ao salvar myChatApp_allRooms no localStorage:", e);
+        }
+    }
+
     function saveRoomState(id, state) {
-        localStorage.setItem(LOCAL_STORAGE_PREFIX + id, JSON.stringify(state));
+        try {
+            localStorage.setItem(LOCAL_STORAGE_PREFIX + id, JSON.stringify(state));
+        } catch (e) {
+            console.error(`Erro ao salvar estado da sala ${id} no localStorage:`, e);
+        }
     }
 
     function loadRoomState(id) {
-        const storedState = localStorage.getItem(LOCAL_STORAGE_PREFIX + id);
-        if (storedState) {
-            const state = JSON.parse(storedState);
-            // Reconstroi o Map (validRooms não é mais um Set aqui)
-            state.bannedUsers = new Map(state.bannedUsers);
-            return state;
+        try {
+            const storedState = localStorage.getItem(LOCAL_STORAGE_PREFIX + id);
+            if (storedState) {
+                const state = JSON.parse(storedState);
+                state.bannedUsers = new Map(state.bannedUsers);
+                return state;
+            }
+        } catch (e) {
+            console.error(`Erro ao carregar estado da sala ${id} do localStorage:`, e);
         }
         return null;
     }
@@ -460,23 +487,21 @@
             roomID: roomID,
             participants: participants,
             playlist: playlist,
-            // validRooms: Array.from(validRooms), // REMOVIDO
-            bannedUsers: Array.from(bannedUsers.entries())
+            bannedUsers: Array.from(bannedUsers.entries()) // Converte Map para Array para JSON
         };
         saveRoomState(roomID, state);
+        console.log(`[DEBUG] Estado da sala ${roomID} atualizado no localStorage.`);
     }
 
     // Função para buscar o estado mais recente de uma sala específica (útil para quem entra)
     function fetchAndUpdateLocalRoomData(id) {
         const state = loadRoomState(id);
         if (state) {
-            // Atualiza apenas as variáveis que precisam ser sincronizadas
-            // validRooms = new Set(state.validRooms); // REMOVIDO
-            participants = state.participants; // Sincroniza a lista de participantes
-            playlist = state.playlist; // Sincroniza a playlist
-            bannedUsers = state.bannedUsers; // Sincroniza usuários banidos
-            updateParticipantList(); // Redesenha a lista de participantes
-            updatePlaylist(); // Redesenha a playlist
+            participants = state.participants;
+            playlist = state.playlist;
+            bannedUsers = state.bannedUsers;
+            updateParticipantList();
+            updatePlaylist();
             console.log(`[DEBUG] Dados da sala ${id} atualizados localmente.`);
         }
     }
@@ -495,17 +520,14 @@
         if (event.key === LOCAL_STORAGE_PENDING_REQUESTS && isAdmin) {
             handleIncomingJoinRequest();
         }
-        // Se a lista de todas as salas mudou (para o caso de uma sala ser criada ou deletada em outra aba)
-        if (event.key === LOCAL_STORAGE_ALL_ROOMS) {
-            console.log("[STORAGE EVENT] Lista de todas as salas mudou.");
-            // Não faz nada aqui, pois a lista só é verificada no momento de entrar ou criar.
-        }
+        // A mudança em LOCAL_STORAGE_ALL_ROOMS não precisa de ação imediata aqui,
+        // pois ela é consultada no momento de Criar/Entrar na sala.
     });
 
     // --- Funções de Pedidos de Entrada (Admin) ---
     // Simula um pedido de entrada sendo colocado no localStorage
     function sendJoinRequest(requestingName, targetRoomID) {
-        const requests = JSON.parse(localStorage.getItem(LOCAL_STORAGE_PENDING_REQUESTS) || '[]');
+        let requests = JSON.parse(localStorage.getItem(LOCAL_STORAGE_PENDING_REQUESTS) || '[]');
         // Adiciona um identificador único para o pedido para evitar duplicatas e permitir rejeições específicas
         const requestId = `${targetRoomID}-${requestingName}-${Date.now()}`;
         requests.push({ id: requestId, roomID: targetRoomID, name: requestingName, status: 'pending' });
@@ -533,8 +555,9 @@
         const pendingRequestsForMyRoom = requests.filter(req => req.roomID === roomID && req.status === 'pending');
 
         if (pendingRequestsForMyRoom.length > 0) {
+            // Cria uma cópia para iterar e modificar o original
             pendingRequestsForMyRoom.forEach(request => {
-                // Remove o pedido pendente do localStorage para que não seja processado novamente
+                // Remove o pedido pendente do localStorage para que não seja processado novamente por outro loop/aba
                 requests = requests.filter(req => req.id !== request.id);
                 localStorage.setItem(LOCAL_STORAGE_PENDING_REQUESTS, JSON.stringify(requests));
 
@@ -544,15 +567,14 @@
         }
     }
 
-    // Inicia a verificação periódica de pedidos de entrada para o admin
-    // Isso é um fallback se o evento 'storage' não for suficiente
+    // Inicia a verificação periódica de pedidos de entrada para o admin (segurança extra)
     setInterval(() => {
         if (isAdmin && roomID) {
             handleIncomingJoinRequest();
         }
     }, 1000); // Verifica a cada segundo
 
-    // --- Funções Auxiliares de UI/Chat (existentes no seu código) ---
+    // --- Funções Auxiliares de UI/Chat ---
     function addSystemMessage(msg) {
       const chatLog = document.getElementById('chatLog');
       const p = document.createElement('p');
@@ -560,7 +582,6 @@
       p.textContent = msg;
       chatLog.appendChild(p);
       chatLog.scrollTop = chatLog.scrollHeight;
-      // Removido a lógica de adicionar validRooms aqui, pois já é tratado no createRoom
     }
 
     function addPrivateMessage(msg, isWarning = false) {
@@ -671,7 +692,7 @@
 
 
       if (youtubeMatch) {
-          processedUrl = `http://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1&controls=1`; // CORRIGIDO: URL correta para embed do YouTube
+          processedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1&controls=1`; // CORRIGIDO: URL correta para embed do YouTube
           mediaName = 'YouTube Video';
           mediaType = 'youtube';
           isValidEmbedOrDirectLink = true;
@@ -819,17 +840,18 @@
       isCreatingRoom = true;
       roomID = Math.random().toString(36).substring(2, 6).toUpperCase();
       
-      // *** CORREÇÃO AQUI: Adicionar o roomID à lista global de salas ativas ***
-      let allRooms = JSON.parse(localStorage.getItem(LOCAL_STORAGE_ALL_ROOMS) || '[]');
+      // *** AJUSTE CRÍTICO AQUI: Adicionar o roomID à lista global de salas ativas IMEDIATAMENTE ***
+      let allRooms = getAllActiveRooms(); // Carrega a lista mais recente
       if (!allRooms.includes(roomID)) {
           allRooms.push(roomID);
-          localStorage.setItem(LOCAL_STORAGE_ALL_ROOMS, JSON.stringify(allRooms));
+          saveAllActiveRooms(allRooms); // Salva a lista atualizada
           console.log(`[DEBUG] Nova sala ${roomID} adicionada à lista global de salas.`);
       }
       
       isAdmin = true;
       document.getElementById('menuSetup').style.display = 'none';
       document.getElementById('namePrompt').style.display = 'flex';
+      console.log(`[DEBUG] Usuário configurado como Admin na sala ${roomID}.`);
     };
 
     // Entrar sala
@@ -842,8 +864,11 @@
         return;
       }
 
-      // *** CORREÇÃO AQUI: Verificar a existência da sala na lista global ***
-      const allRooms = JSON.parse(localStorage.getItem(LOCAL_STORAGE_ALL_ROOMS) || '[]');
+      // *** AJUSTE CRÍTICO AQUI: Verificar a existência da sala na lista global IMEDIATAMENTE ***
+      // É essencial que esta verificação use a função que sempre busca do localStorage
+      const allRooms = getAllActiveRooms();
+      console.log(`[DEBUG] Verificando se a sala ${inputRoomCode} existe na lista:`, allRooms);
+
       if (!allRooms.includes(inputRoomCode)) {
         alert(`Sala "${inputRoomCode}" não existe ou foi deletada.`);
         document.getElementById('roomCode').value = '';
@@ -856,6 +881,7 @@
 
       document.getElementById('menuSetup').style.display = 'none';
       document.getElementById('namePrompt').style.display = 'flex';
+      console.log(`[DEBUG] Usuário tentando entrar na sala ${roomID}.`);
     };
 
     // Confirmar entrada na sala
@@ -889,6 +915,7 @@
         addSystemMessage(`[Sistema: Código da Sala (${roomID})]`);
         addPrivateMessage(`Bem-vindo, ${myName}! Você é o administrador.`);
         updateRoomStateInLocalStorage(); // Garante que o estado inicial da sala está salvo
+        console.log(`[DEBUG] Admin ${myName} entrou na sala ${roomID}. Estado inicial salvo.`);
       } else { // Se está tentando entrar em uma sala existente
         document.getElementById('namePrompt').style.display = 'none';
         document.getElementById('waitingApproval').style.display = 'flex';
@@ -897,6 +924,7 @@
 
         // Envia o pedido de entrada para o localStorage
         sendJoinRequest(myName, roomID);
+        console.log(`[DEBUG] Usuário ${myName} enviou pedido para sala ${roomID}.`);
 
         // Espera pela resposta do administrador via localStorage
         let checkApprovalInterval = setInterval(() => {
@@ -921,11 +949,13 @@
                     document.getElementById('mainUI').style.display = 'flex';
                     addSystemMessage(`${myName} entrou na sala.`);
                     addPrivateMessage(`Você foi aceito na sala ${roomID}!`);
+                    console.log(`[DEBUG] Usuário ${myName} aprovado e entrou na sala ${roomID}.`);
                 } else { // status === 'rejected'
                     document.getElementById('rejectedNotice').style.display = 'flex';
                     addPrivateMessage(`Sua solicitação para a sala ${roomID} foi recusada.`, true);
+                    console.log(`[DEBUG] Usuário ${myName} recusado na sala ${roomID}.`);
                 }
-                // Remove o pedido do localStorage
+                // Remove o pedido do localStorage APÓS processar
                 localStorage.setItem(LOCAL_STORAGE_PENDING_REQUESTS, JSON.stringify(requests.filter(req => req.id !== myRequest.id)));
             }
         }, 1000); // Verifica a cada segundo se o status do pedido mudou
@@ -985,10 +1015,9 @@
                         participants.splice(kickedUserIndex, 1);
                         updateParticipantList(); // Isso já chama updateRoomStateInLocalStorage
                         addSystemMessage(`${kickedUser.name} foi expulso da sala. Motivo: ${restOfMessage || 'Nenhum.'}`);
-                        if (myName === kickedUser.name) {
-                            alert('Você foi expulso da sala!');
-                            window.location.reload();
-                        }
+                        // Nota: Para kickar "de verdade", você precisaria de WebSockets
+                        // Para esta simulação, o usuário expulso precisaria recarregar a página
+                        // ou você poderia adicionar uma lógica para tirá-lo do 'mainUI'
                     } else {
                         addPrivateMessage(`Usuário "${targetName}" não encontrado.`, true);
                     }
@@ -1043,10 +1072,8 @@
                     }
 
                     addSystemMessage(`${targetName} foi banido da sala por ${timeValue}${timeUnit.toLowerCase()}. Motivo: ${reason || 'Nenhum.'}`);
-                    if (myName === targetName) {
-                        alert('Você foi banido da sala!');
-                        window.location.reload();
-                    }
+                    // Para um ban real, o usuário banido precisaria ser forçado a sair
+                    // Aqui, a lógica de banimento impede novas entradas.
                 } else {
                     addPrivateMessage('Você não tem permissão para usar este comando.', true);
                 }
@@ -1203,6 +1230,8 @@
             case '/exitall':
                 if (canAdmin) {
                     addSystemMessage('O administrador encerrou a sessão. Todos serão redirecionados para o menu principal!');
+                    // Idealmente, você limparia os dados da sala no localStorage aqui,
+                    // mas em um modelo sem servidor, isso é mais complexo sem saber quem saiu.
                     setTimeout(() => window.location.reload(), 2000);
                 } else {
                     addPrivateMessage('Você não tem permissão para usar este comando.', true);
@@ -1245,7 +1274,7 @@
         localStorage.setItem(chatMessagesKey, JSON.stringify(messages));
     }
 
-    // Função para carregar mensagens do chat (apenas para teste, em um app real seria via WebSocket)
+    // Função para carregar mensagens do chat
     function loadChatMessages() {
         if (!roomID) return;
         const chatLog = document.getElementById('chatLog');
@@ -1253,7 +1282,7 @@
         const messages = JSON.parse(localStorage.getItem(chatMessagesKey) || '[]');
         chatLog.innerHTML = ''; // Limpa o chat para recarregar
         messages.forEach(msg => {
-            if (msg.sender === 'system') { // Supondo que você pode ter mensagens de sistema persistidas
+            if (msg.sender === 'system') {
                 const p = document.createElement('p');
                 p.classList.add('system-message');
                 p.textContent = msg.message;
@@ -1273,8 +1302,9 @@
             return;
         }
 
-        const currentFile = window.location.pathname.split('/').pop() || 'Player-HTML-CSS-JS.html';
-        const shareLink = `${window.location.origin}/${currentFile}?CODE=${roomID}`;
+        // Garante que o caminho base está correto para o GitHub Pages
+        const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '/');
+        const shareLink = `${baseUrl}?CODE=${roomID}`;
 
         if (navigator.share) {
             try {
@@ -1311,8 +1341,10 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         processInviteLink();
-        // Não é mais necessário carregar validRooms aqui, pois LOCAL_STORAGE_ALL_ROOMS é a fonte da verdade.
+        // Não é necessário carregar allRooms aqui. Ele é lido na hora de 'joinRoom'.
     });
   </script>
 </body>
 </html>
+
+ATENÇÃO!!! VERSÃO BETA, TENHA CUIDADO!
