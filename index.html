@@ -142,7 +142,7 @@
     }
 
     /* Estilos dos Modais (Padrão para Telas Maiores) */
-    #fileMenuModal, #participantListModal, #playlistModal{
+    #fileMenuModal, #participantListModal, #playlistModal, #betaNoticeModal{
       position:fixed; /* */
       top:0; /* */
       left:0; /* */
@@ -154,7 +154,7 @@
       align-items:center;
       z-index:9999;
     }
-    #fileMenuContent, #participantListContent, #playlistContent{
+    #fileMenuContent, #participantListContent, #playlistContent, #betaNoticeContent{
       background:#333; /* */
       padding:1.5rem; /* */
       border-radius:8px;
@@ -165,6 +165,8 @@
       position:relative;
       max-height:90vh;
       overflow-y:auto;
+      color: #FFF; /* Cor do texto no modal */
+      font-size: 1.1rem; /* Tamanho da fonte */
     }
     .closeBtn{
       position:absolute; /* */
@@ -204,6 +206,22 @@
     .warning-message {
         color: yellow;
         font-style: italic; /* */
+    }
+
+    /* Aviso fixo na tela da sala */
+    #betaNoticeFixed {
+        background-color: #5a0a0a; /* Fundo vermelho escuro */
+        color: #fff; /* Texto branco */
+        padding: 0.5rem 1rem;
+        margin-top: 1rem; /* Espaço acima do aviso */
+        text-align: center;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        width: 100%;
+        max-width: 800px; /* Alinha com o player */
+        margin-left: auto;
+        margin-right: auto;
+        word-wrap: break-word; /* Quebra texto longo */
     }
 
     /* --- MEDIA QUERIES --- */
@@ -281,6 +299,11 @@
       #sendChatBtn {
           order: 1; /* Coloca o botão de enviar depois do input */
       }
+      #betaNoticeFixed {
+        margin-top: 0.5rem; /* Ajusta margem em mobile */
+        max-width: 100%; /* Ocupa largura total */
+        border-radius: 0; /* */
+      }
     }
 
     /* Para Telas de TV (Largura mínima de 1600px, adaptando seu breakpoint) */
@@ -310,10 +333,10 @@
       }
 
       /* Modais para TV (Posicionados sem cobrir tudo) */
-      #fileMenuModal, #participantListModal, #playlistModal {
+      #fileMenuModal, #participantListModal, #playlistModal, #betaNoticeModal {
         background:rgba(0,0,0,0.5); /* Fundo um pouco mais transparente */
       }
-      #fileMenuContent, #participantListContent, #playlistContent {
+      #fileMenuContent, #participantListContent, #playlistContent, #betaNoticeContent {
         min-width: 400px; /* Aumenta o tamanho mínimo dos modais */
         max-width: 600px;
         position: absolute; /* Permite posicionamento absoluto */
@@ -377,6 +400,10 @@
       <div id="mediaPlayerContainer">
         <video id="mediaPlayer" controls autoplay></video>
         </div>
+        <div id="betaNoticeFixed" style="display: none;">
+            **ATENÇÃO!!! TENHA CUIDADO, VERSÃO BETA!!**<br>
+            Todo cuidado é pouco (Por Pane)
+        </div>
       <div id="controls">
         <button id="chooseMediaBtn" class="btn" aria-label="Abrir opções para adicionar mídia">Escolher Arquivo/Link/Tela</button> <button id="showPlaylistBtn" class="btn" aria-label="Ver lista de reprodução">📃 Playlist</button>
         <button id="showParticipantsBtn" class="btn" aria-label="Mostrar participantes da sala">👥 Participantes</button>
@@ -398,7 +425,7 @@
   <div id="fileMenuModal">
     <div id="fileMenuContent"> <button class="closeBtn" onclick="document.getElementById('fileMenuModal').style.display='none'" aria-label="Fechar menu de mídia">×</button>
       <button id="selectFileBtn" class="btn" aria-label="Escolher um arquivo de vídeo ou áudio do seu dispositivo">Escolher do dispositivo</button>
-      <button id="insertLinkBtn" class="btn" aria-label="Inserir um link direto para o vídeo">Inserir link de Mídia</button>
+      <button id="insertLinkBtn" class="btn" aria-label="Inserir um link direto para o vídeo">Inserir link de Média</button>
       <button id="shareScreenBtn" class="btn" aria-label="Transmitir a tela ao vivo">Transmitir Tela</button>
     </div>
   </div>
@@ -413,6 +440,15 @@
     <div id="playlistContent">
       <button class="closeBtn" onclick="document.getElementById('playlistModal').style.display='none'" aria-label="Fechar lista de reprodução">×</button>
       <div id="playlistItems"></div>
+    </div>
+  </div>
+
+  <div id="betaNoticeModal" style="display: none;">
+    <div id="betaNoticeContent">
+      <p style="text-align: center;">
+        <strong style="color: #FFD700; font-size: 1.3em;">ATENÇÃO!!! TENHA CUIDADO, VERSÃO BETA!!</strong><br><br>
+        Todo cuidado é pouco (Por Pane)
+      </p>
     </div>
   </div>
 
@@ -435,6 +471,7 @@
     const LOCAL_STORAGE_PREFIX = 'myChatApp_roomState_';
     const LOCAL_STORAGE_PENDING_REQUESTS = 'myChatApp_pendingJoinRequests';
     const LOCAL_STORAGE_ALL_ROOMS = 'myChatApp_allRooms'; // Chave para todas as salas ativas
+    const LOCAL_STORAGE_CHAT_PREFIX = 'myChatApp_chatMessages_'; // Prefixo para mensagens de chat
 
     // --- Funções de Sincronização com localStorage ---
 
@@ -442,7 +479,9 @@
     function getAllActiveRooms() {
         try {
             const storedRooms = localStorage.getItem(LOCAL_STORAGE_ALL_ROOMS);
-            return storedRooms ? JSON.parse(storedRooms) : [];
+            const rooms = storedRooms ? JSON.parse(storedRooms) : [];
+            console.log(`[DEBUG_LS] getAllActiveRooms:`, rooms);
+            return rooms;
         } catch (e) {
             console.error("Erro ao ler myChatApp_allRooms do localStorage:", e);
             return [];
@@ -453,6 +492,7 @@
     function saveAllActiveRooms(roomsArray) {
         try {
             localStorage.setItem(LOCAL_STORAGE_ALL_ROOMS, JSON.stringify(roomsArray));
+            console.log(`[DEBUG_LS] saveAllActiveRooms:`, roomsArray);
         } catch (e) {
             console.error("Erro ao salvar myChatApp_allRooms no localStorage:", e);
         }
@@ -461,6 +501,7 @@
     function saveRoomState(id, state) {
         try {
             localStorage.setItem(LOCAL_STORAGE_PREFIX + id, JSON.stringify(state));
+            console.log(`[DEBUG_LS] Estado da sala ${id} salvo no localStorage.`);
         } catch (e) {
             console.error(`Erro ao salvar estado da sala ${id} no localStorage:`, e);
         }
@@ -472,6 +513,7 @@
             if (storedState) {
                 const state = JSON.parse(storedState);
                 state.bannedUsers = new Map(state.bannedUsers);
+                console.log(`[DEBUG_LS] Estado da sala ${id} carregado do localStorage.`);
                 return state;
             }
         } catch (e) {
@@ -482,7 +524,10 @@
 
     // Função para atualizar o estado global da sala e salvar no localStorage
     function updateRoomStateInLocalStorage() {
-        if (!roomID) return; // Só atualiza se estiver em uma sala
+        if (!roomID) {
+            console.log(`[DEBUG_LS] Não há roomID para atualizar o estado no localStorage.`);
+            return; // Só atualiza se estiver em uma sala
+        }
         const state = {
             roomID: roomID,
             participants: participants,
@@ -490,7 +535,7 @@
             bannedUsers: Array.from(bannedUsers.entries()) // Converte Map para Array para JSON
         };
         saveRoomState(roomID, state);
-        console.log(`[DEBUG] Estado da sala ${roomID} atualizado no localStorage.`);
+        console.log(`[DEBUG_LS] Estado da sala ${roomID} atualizado no localStorage.`);
     }
 
     // Função para buscar o estado mais recente de uma sala específica (útil para quem entra)
@@ -500,11 +545,25 @@
             participants = state.participants;
             playlist = state.playlist;
             bannedUsers = state.bannedUsers;
-            updateParticipantList();
-            updatePlaylist();
-            console.log(`[DEBUG] Dados da sala ${id} atualizados localmente.`);
+            updateParticipantList(); // Atualiza UI e força saveRoomState via participantList
+            updatePlaylist();     // Atualiza UI e força saveRoomState via playlist
+            console.log(`[DEBUG_LS] Dados da sala ${id} atualizados localmente.`);
+        } else {
+            console.log(`[DEBUG_LS] Nenhum estado encontrado para a sala ${id}.`);
         }
     }
+
+    // Função para limpar mensagens de chat de salas antigas do localStorage
+    function cleanOldChatMessages() {
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith(LOCAL_STORAGE_CHAT_PREFIX) && key !== LOCAL_STORAGE_CHAT_PREFIX + roomID) {
+                console.log(`[DEBUG_LS] Removendo chat antigo: ${key}`);
+                localStorage.removeItem(key);
+            }
+        }
+    }
+
 
     // --- Listener para eventos de storage (sincronização entre abas) ---
     window.addEventListener('storage', (event) => {
@@ -514,14 +573,20 @@
             if (changedRoomID === roomID) {
                 console.log(`[STORAGE EVENT] Estado da sala ${changedRoomID} mudou. Atualizando dados locais.`);
                 fetchAndUpdateLocalRoomData(changedRoomID);
+                // Força recarregar mensagens do chat se o estado da sala mudar
+                loadChatMessages();
             }
         }
         // Se o evento for para pedidos de entrada pendentes, e esta aba é a do admin
         if (event.key === LOCAL_STORAGE_PENDING_REQUESTS && isAdmin) {
+            console.log(`[STORAGE EVENT] Pedidos pendentes mudaram. Verificando...`);
             handleIncomingJoinRequest();
         }
-        // A mudança em LOCAL_STORAGE_ALL_ROOMS não precisa de ação imediata aqui,
-        // pois ela é consultada no momento de Criar/Entrar na sala.
+        // Se o evento for para mensagens de chat da sala atual
+        if (event.key === LOCAL_STORAGE_CHAT_PREFIX + roomID) {
+            console.log(`[STORAGE EVENT] Mensagens do chat da sala ${roomID} mudaram. Recarregando chat.`);
+            loadChatMessages();
+        }
     });
 
     // --- Funções de Pedidos de Entrada (Admin) ---
@@ -555,10 +620,9 @@
         const pendingRequestsForMyRoom = requests.filter(req => req.roomID === roomID && req.status === 'pending');
 
         if (pendingRequestsForMyRoom.length > 0) {
-            // Cria uma cópia para iterar e modificar o original
             pendingRequestsForMyRoom.forEach(request => {
                 // Remove o pedido pendente do localStorage para que não seja processado novamente por outro loop/aba
-                requests = requests.filter(req => req.id !== request.id);
+                requests = requests.filter(req => req.id !== request.id); // Remove apenas o pedido atual
                 localStorage.setItem(LOCAL_STORAGE_PENDING_REQUESTS, JSON.stringify(requests));
 
                 const aprovado = confirm(`O participante ${request.name} quer entrar na sala ${request.roomID}. Aceitar?`);
@@ -620,7 +684,8 @@
         div.textContent = `${p.name} ${role}`;
         list.appendChild(div);
       });
-      updateRoomStateInLocalStorage(); // Atualiza localStorage quando a lista de participantes muda
+      // Importante: Chama saveRoomState aqui para garantir que participantes são persistidos
+      updateRoomStateInLocalStorage();
     }
 
     function updatePlaylist() {
@@ -641,7 +706,8 @@
         div.appendChild(small);
         list.appendChild(div);
       });
-      updateRoomStateInLocalStorage(); // Atualiza localStorage quando a playlist muda
+      // Importante: Chama saveRoomState aqui para garantir que a playlist é persistida
+      updateRoomStateInLocalStorage();
     }
 
     // Mostrar modais
@@ -840,12 +906,13 @@
       isCreatingRoom = true;
       roomID = Math.random().toString(36).substring(2, 6).toUpperCase();
       
-      // *** AJUSTE CRÍTICO AQUI: Adicionar o roomID à lista global de salas ativas IMEDIATAMENTE ***
       let allRooms = getAllActiveRooms(); // Carrega a lista mais recente
       if (!allRooms.includes(roomID)) {
           allRooms.push(roomID);
           saveAllActiveRooms(allRooms); // Salva a lista atualizada
           console.log(`[DEBUG] Nova sala ${roomID} adicionada à lista global de salas.`);
+      } else {
+        console.warn(`[DEBUG] Sala ${roomID} já existia na lista global. Não adicionado novamente.`);
       }
       
       isAdmin = true;
@@ -864,8 +931,6 @@
         return;
       }
 
-      // *** AJUSTE CRÍTICO AQUI: Verificar a existência da sala na lista global IMEDIATAMENTE ***
-      // É essencial que esta verificação use a função que sempre busca do localStorage
       const allRooms = getAllActiveRooms();
       console.log(`[DEBUG] Verificando se a sala ${inputRoomCode} existe na lista:`, allRooms);
 
@@ -910,11 +975,14 @@
         alert(`Sala criada! Código: ${roomID}\nVocê é o administrador.`);
         document.getElementById('namePrompt').style.display = 'none';
         document.getElementById('mainUI').style.display = 'flex';
+        document.getElementById('betaNoticeFixed').style.display = 'block'; // Mostra aviso fixo
         updateParticipantList(); // Atualiza a lista e salva no localStorage
         updatePlaylist(); // Salva a playlist vazia no localStorage
         addSystemMessage(`[Sistema: Código da Sala (${roomID})]`);
         addPrivateMessage(`Bem-vindo, ${myName}! Você é o administrador.`);
         updateRoomStateInLocalStorage(); // Garante que o estado inicial da sala está salvo
+        loadChatMessages(); // Carrega o chat (que estará vazio para nova sala)
+        cleanOldChatMessages(); // Limpa chat de outras salas
         console.log(`[DEBUG] Admin ${myName} entrou na sala ${roomID}. Estado inicial salvo.`);
       } else { // Se está tentando entrar em uma sala existente
         document.getElementById('namePrompt').style.display = 'none';
@@ -947,8 +1015,11 @@
                     }
 
                     document.getElementById('mainUI').style.display = 'flex';
+                    document.getElementById('betaNoticeFixed').style.display = 'block'; // Mostra aviso fixo
                     addSystemMessage(`${myName} entrou na sala.`);
                     addPrivateMessage(`Você foi aceito na sala ${roomID}!`);
+                    loadChatMessages(); // Carrega as mensagens do chat da sala
+                    cleanOldChatMessages(); // Limpa chat de outras salas
                     console.log(`[DEBUG] Usuário ${myName} aprovado e entrou na sala ${roomID}.`);
                 } else { // status === 'rejected'
                     document.getElementById('rejectedNotice').style.display = 'flex';
@@ -983,6 +1054,8 @@
             case '/clear':
             case '/clearall':
                 if (canAdmin || canMod) {
+                    const chatMessagesKey = LOCAL_STORAGE_CHAT_PREFIX + roomID;
+                    localStorage.removeItem(chatMessagesKey); // Limpa o chat do localStorage
                     document.getElementById('chatLog').innerHTML = '';
                     addSystemMessage('O histórico do chat foi limpo por um administrador/moderador.');
                 } else {
@@ -1012,12 +1085,9 @@
                              return true;
                         }
 
-                        participants.splice(kickedUserIndex, 1);
-                        updateParticipantList(); // Isso já chama updateRoomStateInLocalStorage
+                        participants.splice(kickedIndex, 1); // Remove do array local
+                        updateParticipantList(); // Isso já chama updateRoomStateInLocalStorage e atualiza a UI
                         addSystemMessage(`${kickedUser.name} foi expulso da sala. Motivo: ${restOfMessage || 'Nenhum.'}`);
-                        // Nota: Para kickar "de verdade", você precisaria de WebSockets
-                        // Para esta simulação, o usuário expulso precisaria recarregar a página
-                        // ou você poderia adicionar uma lógica para tirá-lo do 'mainUI'
                     } else {
                         addPrivateMessage(`Usuário "${targetName}" não encontrado.`, true);
                     }
@@ -1028,7 +1098,7 @@
             case '/ban':
                 if (canAdmin) {
                     if (!targetName || !restOfMessage) {
-                        addPrivateMessage('Uso: /Ban (Nome do usuario) (Mensagem) (Tempo ex: 10m, 5h, 30s)', true);
+                        addPrivateMessage('Uso: /Ban (Nome do usuario) (Motivo) (Tempo ex: 10m, 5h, 30s)', true);
                         return true;
                     }
                     const match = restOfMessage.match(/(.*)\s+(\d+[hms])$/i);
@@ -1072,8 +1142,6 @@
                     }
 
                     addSystemMessage(`${targetName} foi banido da sala por ${timeValue}${timeUnit.toLowerCase()}. Motivo: ${reason || 'Nenhum.'}`);
-                    // Para um ban real, o usuário banido precisaria ser forçado a sair
-                    // Aqui, a lógica de banimento impede novas entradas.
                 } else {
                     addPrivateMessage('Você não tem permissão para usar este comando.', true);
                 }
@@ -1230,8 +1298,12 @@
             case '/exitall':
                 if (canAdmin) {
                     addSystemMessage('O administrador encerrou a sessão. Todos serão redirecionados para o menu principal!');
-                    // Idealmente, você limparia os dados da sala no localStorage aqui,
-                    // mas em um modelo sem servidor, isso é mais complexo sem saber quem saiu.
+                    // Limpa os dados desta sala do localStorage quando o admin sai
+                    localStorage.removeItem(LOCAL_STORAGE_PREFIX + roomID);
+                    localStorage.removeItem(LOCAL_STORAGE_CHAT_PREFIX + roomID);
+                    let allRooms = getAllActiveRooms();
+                    allRooms = allRooms.filter(id => id !== roomID);
+                    saveAllActiveRooms(allRooms); // Remove a sala da lista global
                     setTimeout(() => window.location.reload(), 2000);
                 } else {
                     addPrivateMessage('Você não tem permissão para usar este comando.', true);
@@ -1262,23 +1334,24 @@
           return;
       }
 
-      addChatMessage(myName, msg);
+      // addChatMessage(myName, msg); // Removido para evitar duplicidade com loadChatMessages
       broadcastChatMessage(myName, msg);
     }
 
     function broadcastChatMessage(sender, message) {
         if (!roomID) return; // Só envia se estiver em uma sala
-        const chatMessagesKey = `myChatApp_chatMessages_${roomID}`;
+        const chatMessagesKey = LOCAL_STORAGE_CHAT_PREFIX + roomID;
         const messages = JSON.parse(localStorage.getItem(chatMessagesKey) || '[]');
         messages.push({ sender, message, timestamp: Date.now() });
         localStorage.setItem(chatMessagesKey, JSON.stringify(messages));
+        console.log(`[DEBUG_LS] Mensagem de chat salva para sala ${roomID}.`);
     }
 
     // Função para carregar mensagens do chat
     function loadChatMessages() {
         if (!roomID) return;
         const chatLog = document.getElementById('chatLog');
-        const chatMessagesKey = `myChatApp_chatMessages_${roomID}`;
+        const chatMessagesKey = LOCAL_STORAGE_CHAT_PREFIX + roomID;
         const messages = JSON.parse(localStorage.getItem(chatMessagesKey) || '[]');
         chatLog.innerHTML = ''; // Limpa o chat para recarregar
         messages.forEach(msg => {
@@ -1288,7 +1361,12 @@
                 p.textContent = msg.message;
                 chatLog.appendChild(p);
             } else {
-                addChatMessage(msg.sender, msg.message);
+                // Adiciona a mensagem, garantindo que não estamos duplicando
+                const existingMsgs = Array.from(chatLog.children).map(p => p.textContent);
+                const newMessageText = `${msg.sender}: ${msg.message}`;
+                if (!existingMsgs.includes(newMessageText)) { // Evita adicionar a mesma mensagem várias vezes
+                     addChatMessage(msg.sender, msg.message);
+                }
             }
         });
         chatLog.scrollTop = chatLog.scrollHeight;
@@ -1341,10 +1419,17 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         processInviteLink();
-        // Não é necessário carregar allRooms aqui. Ele é lido na hora de 'joinRoom'.
+        
+        // Exibe o modal de aviso BETA por 15 segundos
+        const betaModal = document.getElementById('betaNoticeModal');
+        betaModal.style.display = 'flex';
+        setTimeout(() => {
+            betaModal.style.display = 'none';
+        }, 15000); // 15 segundos
     });
+
+    // Removendo listener extra de 'storage' que pode causar loops
+    // O listener principal já está no topo do script
   </script>
 </body>
 </html>
-
-ATENÇÃO!!! VERSÃO BETA, TENHA CUIDADO!
