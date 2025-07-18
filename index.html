@@ -139,7 +139,7 @@
         }
 
         /* Estilos dos Modais (Padrão para Telas Maiores) */
-        #fileMenuModal, #participantListModal, #playlistModal, #betaNoticeModal{
+        #fileMenuModal, #participantListModal, #playlistModal, #betaNoticeModal, #participantActionsModal{
             position:fixed; /* */
             top:0; /* */
             left:0; /* */
@@ -151,7 +151,7 @@
             align-items:center;
             z-index:9999;
         }
-        #fileMenuContent, #participantListContent, #playlistContent, #betaNoticeContent{
+        #fileMenuContent, #participantListContent, #playlistContent, #betaNoticeContent, #participantActionsContent{
             background:#333; /* */
             padding:1.5rem; /* */
             border-radius:8px;
@@ -184,8 +184,19 @@
         }
 
         /* Estilos de Itens da Playlist/Participantes */
-        .playlistItem{display:flex;justify-content:space-between;align-items:center;padding:.5rem;margin-bottom:.3rem;background:#2a2a2a; /* */
-        border-radius: 4px;}
+        .playlistItem{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            padding:.5rem;
+            margin-bottom:.3rem;
+            background:#2a2a2a; /* */
+            border-radius: 4px;
+            cursor: pointer; /* Adiciona cursor de ponteiro para indicar clicável */
+        }
+        .playlistItem:hover {
+            background-color: #3a3a3a; /* Levemente mais escuro ao passar o mouse */
+        }
         .playlistItem span{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
         .playlistItem small{opacity:0.7; /* */
         margin-left: 0.5rem;}
@@ -639,6 +650,19 @@
         </div>
     </div>
 
+    <!-- New Participant Actions Modal -->
+    <div id="participantActionsModal" class="custom-modal">
+        <div id="participantActionsContent" class="custom-modal-content">
+            <button class="closeBtn" onclick="document.getElementById('participantActionsModal').style.display='none'" aria-label="Fechar menu de ações do participante">×</button>
+            <p>Ações para <strong id="actionUserName"></strong></p>
+            <div class="custom-modal-buttons" style="flex-direction: column; gap: 0.5rem;">
+                <button id="kickUserBtn" class="btn" style="background-color: #dc3545;">Expulsar</button>
+                <button id="banUserBtn" class="btn" style="background-color: #6c757d;">Banir</button>
+                <button id="muteUserBtn" class="btn" style="background-color: #007bff;">Silenciar</button>
+            </div>
+        </div>
+    </div>
+
     <audio id="memeSound" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
 
     <script>
@@ -1079,6 +1103,7 @@
             participants.forEach(p => {
                 const div = document.createElement('div');
                 div.className = 'playlistItem';
+                
                 let role = '';
                 if (p.isAdmin) role = '(admin)';
                 else if (p.isMod) role = '(mod)';
@@ -1089,32 +1114,30 @@
                     displayName = aiSleeping ? `${AI_BASE_NAME} (Dormindo💤)` : AI_BASE_NAME;
                 }
 
-                div.textContent = `${displayName} ${role}`;
-
-                // Adicionar botões de ação para o admin (kick/ban)
-                if (isAdmin && p.name !== myName && !p.isAI) { // Admin não pode dar kick/ban em si mesmo ou na IA
-                    const kickBtn = document.createElement('button');
-                    kickBtn.textContent = 'Kick';
-                    kickBtn.className = 'btn';
-                    kickBtn.style.marginLeft = '10px';
-                    kickBtn.style.backgroundColor = '#dc3545'; // Vermelho
-                    kickBtn.onclick = () => kickUser(p.name);
-                    div.appendChild(kickBtn);
-
-                    const banBtn = document.createElement('button');
-                    banBtn.textContent = 'Ban';
-                    banBtn.className = 'btn';
-                    banBtn.style.marginLeft = '5px';
-                    banBtn.style.backgroundColor = '#6c757d'; // Cinza
-                    banBtn.onclick = () => banUser(p.name);
-                    div.appendChild(banBtn);
+                let status = '';
+                if (p.isMuted) {
+                    status = ' (mutado 🔇)';
                 }
+
+                div.textContent = `${displayName} ${role}${status}`;
+                div.dataset.userName = p.name; // Store username for click handler
+
+                // Add click listener only if current user is admin/mod and not clicking on self or AI
+                if ((isAdmin || isMod(myName)) && p.name !== myName && !p.isAI) {
+                    div.onclick = () => showParticipantActionsModal(p.name);
+                }
+
+                // Adicionar botões de ação para o admin (kick/ban) (removidos daqui para o modal)
                 list.appendChild(div);
             });
             // Importante: Chama saveRoomState aqui para garantir que participantes são persistidos
             updateRoomStateInLocalStorage();
         }
 
+        function isMod(userName) {
+            const user = participants.find(p => p.name === userName);
+            return user && user.isMod;
+        }
 
         function updatePlaylist() {
             const list = document.getElementById('playlistItems');
@@ -1159,10 +1182,10 @@
         }
 
 
-        // --- Funções de gerenciamento de Participantes (Kick/Ban) ---
+        // --- Funções de gerenciamento de Participantes (Kick/Ban/Mute) ---
 
         function kickUser(userName, reason = 'Sem motivo.') {
-            if (!isAdmin) {
+            if (!isAdmin && !isMod(myName)) {
                 addPrivateMessage('Você não tem permissão para remover usuários.', true);
                 return;
             }
@@ -1186,7 +1209,7 @@
 
 
         function banUser(userName, reason = 'Sem motivo.', durationMinutes = 0) {
-            if (!isAdmin) {
+            if (!isAdmin && !isMod(myName)) {
                 addPrivateMessage('Você não tem permissão para banir usuários.', true);
                 return;
             }
@@ -1219,6 +1242,27 @@
             const banNotificationId = `ban-${userName}-${roomID}-${Date.now()}`;
             requests.push({ id: banNotificationId, roomID: roomID, name: userName, status: 'rejected', reason: `Você foi banido da sala. ${banReasonText}` });
             localStorage.setItem(LOCAL_STORAGE_PENDING_REQUESTS, JSON.stringify(requests));
+        }
+
+        function muteUser(userName) {
+            if (!isAdmin && !isMod(myName)) {
+                addPrivateMessage('Você não tem permissão para silenciar usuários.', true);
+                return;
+            }
+            if (userName === myName) {
+                addPrivateMessage('Você não pode silenciar a si mesmo.', true);
+                return;
+            }
+
+            const targetUser = participants.find(p => p.name === userName);
+            if (targetUser) {
+                targetUser.isMuted = !targetUser.isMuted; // Toggle mute status
+                addSystemMessage(`${targetUser.name} foi ${targetUser.isMuted ? 'silenciado 🔇' : 'dessilenciado ✅'}.`);
+                updateParticipantList(); // Update UI and save state
+                updateRoomStateInLocalStorage();
+            } else {
+                addPrivateMessage(`Usuário "${userName}" não encontrado na sala.`, true);
+            }
         }
 
 
@@ -1274,6 +1318,7 @@
             document.getElementById('waitingApproval').style.display = 'none';
             document.getElementById('rejectedNotice').style.display = 'none';
             document.getElementById('ageVerificationModal').style.display = 'none'; // Esconde o modal de idade
+            document.getElementById('participantActionsModal').style.display = 'none'; // Esconde o modal de ações de participante
             document.getElementById(screenId).style.display = 'flex'; // Usar 'flex' para as telas modais
         }
 
@@ -1493,7 +1538,7 @@
             // Now, add the current user to the participants list if they are not already there.
             // This handles cases where the localStorage update might have been delayed or missed.
             if (!participants.some(p => p.name === myName)) {
-                participants.push({ name: myName, isAdmin: isAdmin, isMod: false, isAI: false }); // Ensure isAI is false for human users
+                participants.push({ name: myName, isAdmin: isAdmin, isMod: false, isAI: false, isMuted: false }); // Ensure isAI is false for human users, add isMuted
                 console.log(`[CLIENT DEBUG] Added ${myName} to participants. Final list:`, [...participants]);
                 addSystemMessage(`${myName} entrou na sala.`);
             } else {
@@ -1503,7 +1548,7 @@
             
             // If AI was active in the loaded state, ensure it's added/updated in the list
             if (aiChatbotActive && !participants.some(p => p.isAI)) {
-                participants.push({ name: AI_BASE_NAME, isAdmin: false, isMod: false, isAI: true });
+                participants.push({ name: AI_BASE_NAME, isAdmin: false, isMod: false, isAI: true, isMuted: false }); // Add isMuted for AI too
             }
 
             updateParticipantList(); // Update UI and save to localStorage (this will trigger storage event for others)
@@ -1527,10 +1572,10 @@
             if (!participants.some(p => p.name === name)) {
                 // Check if it's the AI being added, if so, mark it as isAI
                 const isAI = (name === AI_BASE_NAME || name.startsWith(AI_BASE_NAME + ' (Dormindo'));
-                participants.push({ name: name, isAdmin: admin, isMod: false, isAI: isAI });
+                participants.push({ name: name, isAdmin: admin, isMod: false, isAI: isAI, isMuted: false }); // Add isMuted
                 console.log(`[DEBUG] ${name} added to participants. New list:`, [...participants]);
-                updateParticipantList();
                 addSystemMessage(`${name} entrou na sala.`);
+                updateParticipantList(); // This will save to localStorage
             } else {
                 console.log(`[DEBUG] ${name} already in participants. Not adding again.`);
             }
@@ -1775,6 +1820,14 @@
         function sendChatMessage() {
             const message = chatInput.value.trim();
             if (message) {
+                // Check if the current user is muted
+                const currentUser = participants.find(p => p.name === myName);
+                if (currentUser && currentUser.isMuted) {
+                    addPrivateMessage('Você está silenciado e não pode enviar mensagens. 🔇', true);
+                    chatInput.value = '';
+                    return;
+                }
+
                 if (message.startsWith('/')) {
                     handleCommand(message);
                 } else {
@@ -1790,7 +1843,7 @@
                             aiSleeping = false; // Ensure Fox is awake when activated
                             // Add Fox to participants if not already there
                             if (!participants.some(p => p.isAI)) {
-                                participants.push({ name: AI_BASE_NAME, isAdmin: false, isMod: false, isAI: true });
+                                participants.push({ name: AI_BASE_NAME, isAdmin: false, isMod: false, isAI: true, isMuted: false }); // Add isMuted for AI
                                 updateParticipantList(); // This will save to localStorage
                             }
                             updateAIFoxDisplay(); // Ensure display name is correct
@@ -1898,7 +1951,9 @@
                 chatHistory.push({ role: "user", parts: [{ text: prompt }] });
 
                 const payload = { contents: chatHistory };
-                const apiKey = ""; // Leave as-is, Canvas will provide it
+                // START API KEY MODIFICATION
+                const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
                 const response = await fetch(apiUrl, {
@@ -1957,7 +2012,9 @@
                 chatHistory.push({ role: "user", parts: [{ text: prompt }] });
 
                 const payload = { contents: chatHistory };
-                const apiKey = ""; // Leave as-is, Canvas will provide it
+                // START API KEY MODIFICATION
+                const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
                 const response = await fetch(apiUrl, {
@@ -2021,7 +2078,9 @@
                 chatHistory.push({ role: "user", parts: [{ text: prompt }] });
 
                 const payload = { contents: chatHistory };
-                const apiKey = ""; // Leave as-is, Canvas will provide it
+                // START API KEY MODIFICATION
+                const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
                 const response = await fetch(apiUrl, {
@@ -2077,7 +2136,9 @@
                 chatHistory.push({ role: "user", parts: [{ text: prompt }] });
 
                 const payload = { contents: chatHistory };
-                const apiKey = ""; // Leave as-is, Canvas will provide it
+                // START API KEY MODIFICATION
+                const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
                 const response = await fetch(apiUrl, {
@@ -2137,7 +2198,9 @@
                 chatHistory.push({ role: "user", parts: [{ text: prompt }] });
 
                 const payload = { contents: chatHistory };
-                const apiKey = ""; // Leave as-is, Canvas will provide it
+                // START API KEY MODIFICATION
+                const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
                 const response = await fetch(apiUrl, {
@@ -2351,14 +2414,11 @@
 
             addSystemMessage('Fox está pensando...'); // Updated message
             try {
-                // Combined LLM query for intent detection
-                const intentDetectionPrompt = `Analise a seguinte mensagem do usuário e determine a intenção principal. Responda em JSON.
+                // Simplified intent detection prompt and schema
+                const intentDetectionPrompt = `Analise a seguinte mensagem do usuário e determine a intenção principal.
+                Responda em JSON com apenas a "intent".
                 {
-                    "intent": "time_query" | "media_request" | "user_agent_query" | "general_chat",
-                    "location": "Brasília" | "current_location" | null, // For time queries
-                    "mediaType": "link" | "search" | null, // For media requests
-                    "mediaContent": string | null, // For media requests
-                    "mediaName": string | null // For media requests
+                    "intent": "time_query" | "media_request" | "user_agent_query" | "analyze_link" | "general_chat"
                 }
                 Mensagem do usuário: "${userMessage}"`;
 
@@ -2372,18 +2432,16 @@
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
-                                "intent": { "type": "STRING", "enum": ["time_query", "media_request", "user_agent_query", "general_chat"] },
-                                "location": { "type": "STRING", "enum": ["Brasília", "current_location", "null"], "nullable": true },
-                                "mediaType": { "type": "STRING", "enum": ["link", "search", "null"], "nullable": true },
-                                "mediaContent": { "type": "STRING", "nullable": true },
-                                "mediaName": { "type": "STRING", "nullable": true }
+                                "intent": { "type": "STRING", "enum": ["time_query", "media_request", "user_agent_query", "analyze_link", "general_chat"] }
                             },
-                            "propertyOrdering": ["intent", "location", "mediaType", "mediaContent", "mediaName"]
+                            "propertyOrdering": ["intent"]
                         }
                     }
                 };
 
-                const apiKey = ""; // Leave as-is, Canvas will provide it
+                // START API KEY MODIFICATION
+                const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
                 const intentResponse = await fetch(apiUrl, {
@@ -2393,7 +2451,7 @@
                 });
 
                 const intentResult = await intentResponse.json();
-                let parsedIntent = { intent: "general_chat" }; // Default to general chat
+                let parsedIntent = { intent: "general_chat" }; // Default
 
                 if (intentResult.candidates && intentResult.candidates.length > 0 &&
                     intentResult.candidates[0].content && intentResult.candidates[0].content.parts &&
@@ -2402,10 +2460,100 @@
                         parsedIntent = JSON.parse(intentResult.candidates[0].content.parts[0].text);
                     } catch (e) {
                         console.error('Failed to parse intent JSON:', e);
+                        // Fallback to general chat if parsing fails
+                        parsedIntent = { intent: "general_chat" };
                     }
                 }
 
+                // Extract URL from user message if an intent related to URL is detected
+                let extractedUrl = null;
+                const urlRegex = /(https?:\/\/[^\s]+)/g;
+                const urlMatches = userMessage.match(urlRegex);
+                if (urlMatches && urlMatches.length > 0) {
+                    extractedUrl = urlMatches[0]; // Take the first URL found
+                }
+
                 // Handle intents
+                if (parsedIntent.intent === 'analyze_link' && extractedUrl) {
+                    addSystemMessage(`Fox: Entendi! Você quer que eu analise o link: ${extractedUrl}.`);
+
+                    // Check if it's a media URL first, offer to play
+                    const youtubeMatch = extractedUrl.match(/(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+                    const twitchMatch = extractedUrl.match(/(?:twitch\.tv\/([a-zA-Z0-9_]+)(?:\/videos\/(\d+))?)/);
+                    const vimeoMatch = extractedUrl.match(/(?:vimeo\.com\/(?:video\/)?([0-9]+))/);
+                    const dailymotionMatch = extractedUrl.match(/(?:dailymotion\.com\/(?:video|hub)\/([a-zA-Z0-9]+))/);
+                    const directMediaMatch = /\.(mp4|webm|ogg|mp3|wav)(\?.*)?$/i.test(extractedUrl);
+
+                    if (youtubeMatch || twitchMatch || vimeoMatch || dailymotionMatch || directMediaMatch) {
+                        const confirmPlay = await customConfirm(`Fox: Parece que este é um link de mídia: ${extractedUrl}. Quer que eu o reproduza no player? (Se escolher "Não", eu tentarei te dar informações sobre o link, mas não posso "navegar" nele diretamente.)`);
+                        if (confirmPlay) {
+                            let mediaType = 'link';
+                            let mediaName = 'Mídia Analisada';
+                            let processedUrl = extractedUrl;
+
+                            if (youtubeMatch) {
+                                processedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1&controls=1`;
+                                mediaType = 'youtube';
+                                mediaName = 'YouTube Video';
+                            } else if (twitchMatch) {
+                                const channel = twitchMatch[1];
+                                const videoId = twitchMatch[2];
+                                if (videoId) {
+                                    processedUrl = `https://player.twitch.tv/?video=${videoId}&parent=${window.location.hostname}&autoplay=true`;
+                                    mediaType = 'twitch_vod';
+                                    mediaName = 'Twitch VOD';
+                                } else {
+                                    processedUrl = `https://player.twitch.tv/?channel=${channel}&parent=${window.location.hostname}&autoplay=true`;
+                                    mediaType = 'twitch_live';
+                                    mediaName = `Twitch Live: ${channel}`;
+                                }
+                            } else if (vimeoMatch) {
+                                processedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`;
+                                mediaType = 'vimeo';
+                                mediaName = 'Vimeo Video';
+                            } else if (dailymotionMatch) {
+                                processedUrl = `https://www.dailymotion.com/embed/video/${dailymotionMatch[1]}?autoplay=1`;
+                                mediaType = 'dailymotion';
+                                mediaName = 'DailyMotion Video';
+                            } else if (directMediaMatch) {
+                                mediaType = 'direct_link';
+                                mediaName = extractedUrl.substring(extractedUrl.lastIndexOf('/') + 1);
+                            }
+                            
+                            playAndBroadcast(processedUrl, mediaType, mediaName, true);
+                            addChatMessage('Fox', `Começando a reproduzir a mídia de ${extractedUrl}!`);
+                            return; // Exit after playing
+                        }
+                    }
+
+                    // If not a media link or user declined playback, explain limitation
+                    addChatMessage('Fox', `Desculpe, não consigo "navegar" diretamente em links externos como ${extractedUrl} do meu ambiente aqui no navegador devido a restrições de segurança (CORS).`);
+                    
+                    // Optional: Ask LLM to summarize the URL string itself if it's not a media link
+                    const urlSummaryPrompt = `Resuma brevemente o que você espera encontrar em uma página com a URL: ${extractedUrl}. Mencione o domínio principal e o tipo de conteúdo que a URL sugere.`;
+                    let urlSummaryChatHistory = [];
+                    urlSummaryChatHistory.push({ role: "user", parts: [{ text: urlSummaryPrompt }] });
+                    const urlSummaryPayload = { contents: urlSummaryChatHistory };
+                    const urlSummaryResponse = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(urlSummaryPayload)
+                    });
+                    const urlSummaryResult = await urlSummaryResponse.json();
+
+                    if (urlSummaryResult.candidates && urlSummaryResult.candidates.length > 0 &&
+                        urlSummaryResult.candidates[0].content && urlSummaryResult.candidates[0].content.parts &&
+                        urlSummaryResult.candidates[0].content.parts.length > 0) {
+                        const urlSummaryText = urlSummaryResult.candidates[0].content.parts[0].text;
+                        addChatMessage('Fox', `Sobre o link ${extractedUrl}: ${urlSummaryText}`);
+                    } else {
+                        console.error('Gemini API response structure unexpected for URL summary:', urlSummaryResult);
+                        addChatMessage('Fox', `Não consegui gerar um resumo do link ${extractedUrl}.`);
+                    }
+
+                    return; // Exit after handling analyze_link
+                }
+
                 if (parsedIntent.intent === 'time_query') {
                     if (parsedIntent.location === 'Brasília') {
                         const brasiliaTime = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' });
@@ -2447,134 +2595,69 @@
                     }
                 } else if (parsedIntent.intent === 'user_agent_query') {
                     addChatMessage('Fox', `Hmm, deixe-me ver... Seu User Agent é: "${navigator.userAgent}". É assim que os navegadores se identificam! 😉`);
-                } else if (parsedIntent.intent === 'media_request' && parsedIntent.mediaContent) {
+                } else if (parsedIntent.intent === 'media_request' && extractedUrl) { // Use extractedUrl for media requests
                     let playedSuccessfully = false;
-                    let mediaToPlay = parsedIntent.mediaContent;
+                    let mediaToPlay = extractedUrl;
                     let mediaType = 'link'; // Default to link, will be refined by playAndBroadcast
-                    let mediaName = parsedIntent.mediaName || 'Conteúdo Solicitado';
+                    let mediaName = 'Conteúdo Solicitado';
 
-                    // Try to play directly if it's a link request
-                    if (parsedIntent.mediaType === 'link') {
-                        // Attempt to determine media type more accurately before calling playAndBroadcast
-                        const youtubeMatch = mediaToPlay.match(/(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-                        const twitchMatch = mediaToPlay.match(/(?:twitch\.tv\/([a-zA-Z0-9_]+)(?:\/videos\/(\d+))?)/);
-                        const vimeoMatch = mediaToPlay.match(/(?:vimeo\.com\/(?:video\/)?([0-9]+))/);
-                        const dailymotionMatch = mediaToPlay.match(/(?:dailymotion\.com\/(?:video|hub)\/([a-zA-Z0-9]+))/);
-                        const directMediaMatch = /\.(mp4|webm|ogg|mp3|wav)(\?.*)?$/i.test(mediaToPlay);
+                    // Attempt to determine media type more accurately before calling playAndBroadcast
+                    const youtubeMatch = mediaToPlay.match(/(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+                    const twitchMatch = mediaToPlay.match(/(?:twitch\.tv\/([a-zA-Z0-9_]+)(?:\/videos\/(\d+))?)/);
+                    const vimeoMatch = mediaToPlay.match(/(?:vimeo\.com\/(?:video\/)?([0-9]+))/);
+                    const dailymotionMatch = mediaToPlay.match(/(?:dailymotion\.com\/(?:video|hub)\/([a-zA-Z0-9]+))/);
+                    const directMediaMatch = /\.(mp4|webm|ogg|mp3|wav)(\?.*)?$/i.test(mediaToPlay);
 
-                        if (youtubeMatch) {
-                            mediaToPlay = `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1&controls=1`;
-                            mediaType = 'youtube';
-                        } else if (twitchMatch) {
-                            const channel = twitchMatch[1];
-                            const videoId = twitchMatch[2];
-                            if (videoId) {
-                                mediaToPlay = `https://player.twitch.tv/?video=${videoId}&parent=${window.location.hostname}&autoplay=true`;
-                                mediaType = 'twitch_vod';
-                            } else {
-                                mediaToPlay = `https://player.twitch.tv/?channel=${channel}&parent=${window.location.hostname}&autoplay=true`;
-                                mediaType = 'twitch_live';
-                            }
-                        } else if (vimeoMatch) {
-                            mediaToPlay = `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`;
-                            mediaType = 'vimeo';
-                        } else if (dailymotionMatch) {
-                            mediaToPlay = `https://www.dailymotion.com/embed/video/${dailymotionMatch[1]}?autoplay=1`;
-                            mediaType = 'dailymotion';
-                        } else if (directMediaMatch) {
-                            mediaType = 'direct_link';
+                    if (youtubeMatch) {
+                        mediaToPlay = `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1&controls=1`;
+                        mediaType = 'youtube';
+                        mediaName = 'YouTube Video';
+                    } else if (twitchMatch) {
+                        const channel = twitchMatch[1];
+                        const videoId = twitchMatch[2];
+                        if (videoId) {
+                            mediaToPlay = `https://player.twitch.tv/?video=${videoId}&parent=${window.location.hostname}&autoplay=true`;
+                            mediaType = 'twitch_vod';
+                            mediaName = 'Twitch VOD';
                         } else {
-                            // If it's not a recognized embeddable link, treat as search
-                            parsedIntent.mediaType = 'search';
-                            mediaName = parsedIntent.mediaContent; // Use the original content as search query
+                            mediaToPlay = `https://player.twitch.tv/?channel=${channel}&parent=${window.location.hostname}&autoplay=true`;
+                            mediaType = 'twitch_live';
+                            mediaName = `Twitch Live: ${channel}`;
                         }
-
-                        if (parsedIntent.mediaType === 'link') { // Only try to play if it's still considered a direct link
-                            playedSuccessfully = playAndBroadcast(mediaToPlay, mediaType, mediaName, true);
-                        }
+                    } else if (vimeoMatch) {
+                        mediaToPlay = `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`;
+                        mediaType = 'vimeo';
+                        mediaName = 'Vimeo Video';
+                    } else if (dailymotionMatch) {
+                        mediaToPlay = `https://www.dailymotion.com/embed/video/${dailymotionMatch[1]}?autoplay=1`;
+                        mediaType = 'dailymotion';
+                        mediaName = 'DailyMotion Video';
+                    } else if (directMediaMatch) {
+                        mediaType = 'direct_link';
+                    } else {
+                        // If it's not a recognized embeddable link, treat as search (but we can't search directly)
+                        addChatMessage('Fox', `Desculpe, não consigo reproduzir este link diretamente. Parece que não é um formato de mídia que eu reconheça para o player.`);
+                        return;
                     }
 
-                    // If direct play failed or it's a search request, try Google Search
-                    if (!playedSuccessfully && parsedIntent.mediaType === 'search') {
-                        addSystemMessage(`Fox: Não consegui reproduzir diretamente. Vou tentar pesquisar por "${parsedIntent.mediaContent}"...`);
-                        const searchResults = await google_search.search(queries=[parsedIntent.mediaContent]);
-                        
-                        let foundSearchLink = null;
-                        let foundSearchType = null;
-                        let foundSearchName = null;
-
-                        if (searchResults && searchResults.length > 0 && searchResults[0].results) {
-                            for (const result of searchResults[0].results) {
-                                const url = result.url;
-                                if (url) {
-                                    const youtubeMatch = url.match(/(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-                                    const twitchMatch = url.match(/(?:twitch\.tv\/([a-zA-Z0-9_]+)(?:\/videos\/(\d+))?)/);
-                                    const vimeoMatch = url.match(/(?:vimeo\.com\/(?:video\/)?([0-9]+))/);
-                                    const dailymotionMatch = url.match(/(?:dailymotion\.com\/(?:video|hub)\/([a-zA-Z0-9]+))/);
-                                    const directMediaMatch = /\.(mp4|webm|ogg|mp3|wav)(\?.*)?$/i.test(url);
-
-                                    if (youtubeMatch) {
-                                        foundSearchLink = `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1&controls=1`;
-                                        foundSearchType = 'youtube';
-                                        foundSearchName = result.source_title || 'Vídeo do YouTube';
-                                        break;
-                                    } else if (twitchMatch) {
-                                        const channel = twitchMatch[1];
-                                        const videoId = twitchMatch[2];
-                                        if (videoId) {
-                                            foundSearchLink = `https://player.twitch.tv/?video=${videoId}&parent=${window.location.hostname}&autoplay=true`;
-                                            foundSearchType = 'twitch_vod';
-                                            foundSearchName = result.source_title || 'VOD da Twitch';
-                                        } else {
-                                            foundSearchLink = `https://player.twitch.tv/?channel=${channel}&parent=${window.location.hostname}&autoplay=true`;
-                                            foundSearchType = 'twitch_live';
-                                            foundSearchName = result.source_title || 'Live da Twitch';
-                                        }
-                                        break;
-                                    } else if (vimeoMatch) {
-                                        foundSearchLink = `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`;
-                                        foundSearchType = 'vimeo';
-                                        foundSearchName = result.source_title || 'Vídeo do Vimeo';
-                                        break;
-                                    } else if (dailymotionMatch) {
-                                        foundSearchLink = `https://www.dailymotion.com/embed/video/${dailymotionMatch[1]}?autoplay=1`;
-                                        foundSearchType = 'dailymotion';
-                                        foundSearchName = result.source_title || 'Vídeo do DailyMotion';
-                                        break;
-                                    } else if (directMediaMatch) {
-                                        foundSearchLink = url;
-                                        foundSearchType = 'direct_link';
-                                        foundSearchName = result.source_title || url.substring(url.lastIndexOf('/') + 1);
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-
-                        if (foundSearchLink) {
-                            playedSuccessfully = playAndBroadcast(foundSearchLink, foundSearchType, foundSearchName, true);
-                            if (playedSuccessfully) {
-                                addChatMessage('Fox', `Claro! Encontrei e estou começando a reproduzir para você! Espero que goste! ✨`);
-                            } else {
-                                addChatMessage('Fox', `Ops! Encontrei algo, mas não consegui reproduzir. Tem certeza que é um link válido?`);
-                            }
-                        } else {
-                            addChatMessage('Fox', `Ah, que pena! Tentei encontrar o que você pediu, mas não consegui achar nenhuma correspondência que eu possa reproduzir. Talvez possamos tentar outra coisa? 🙁`);
-                        }
-                    } else if (playedSuccessfully) {
-                        addChatMessage('Fox', `Claro! Estou reproduzindo o link para você! Espero que goste! ✨`);
+                    playedSuccessfully = playAndBroadcast(mediaToPlay, mediaType, mediaName, true);
+                    if (playedSuccessfully) {
+                        addChatMessage('Fox', `Claro! Começando a reproduzir para você! Espero que goste! ✨`);
                     } else {
-                        // If it was a direct link request but failed and not a search, just say it failed.
-                        addChatMessage('Fox', `Desculpe, não consegui reproduzir o link que você me deu. Tem certeza que está correto?`);
+                        addChatMessage('Fox', `Ops! Não consegui reproduzir o link. Tem certeza que é um link válido e que eu tenho permissão?`);
                     }
                 } else {
                     // General conversation
-                    const generalPrompt = `Você é uma chatbot amigável chamada Fox em uma sala de chat. Responda à seguinte mensagem do usuário de forma concisa e útil, mantendo a conversa fluida. Mensagem do usuário: "${userMessage}"`;
+                    // Updated prompt to include environment context
+                    const generalPrompt = `Você é uma chatbot amigável chamada Fox em uma sala de chat com um player de áudio e vídeo HTML/CSS/JS. Você pode ajudar os usuários com tarefas relacionadas ao player (como reproduzir links, pesquisar conteúdo) e também conversar sobre tópicos gerais. Responda à seguinte mensagem do usuário de forma concisa e útil, mantendo a conversa fluida. Mensagem do usuário: "${userMessage}"`;
 
                     let generalChatHistory = [];
                     generalChatHistory.push({ role: "user", parts: [{ text: generalPrompt }] });
 
                     const generalPayload = { contents: generalChatHistory };
+                    // START API KEY MODIFICATION
+                    const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                    // END API KEY MODIFICATION
                     const generalResponse = await fetch(apiUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -2601,6 +2684,39 @@
             }
         }
 
+        function showParticipantActionsModal(userName) {
+            const modal = document.getElementById('participantActionsModal');
+            document.getElementById('actionUserName').textContent = userName;
+
+            // Update mute button text based on user's current mute status
+            const targetUser = participants.find(p => p.name === userName);
+            const muteButton = document.getElementById('muteUserBtn');
+            if (targetUser && targetUser.isMuted) {
+                muteButton.textContent = 'Dessilenciar';
+                muteButton.style.backgroundColor = '#28a745'; // Green for unmute
+            } else {
+                muteButton.textContent = 'Silenciar';
+                muteButton.style.backgroundColor = '#007bff'; // Blue for mute
+            }
+
+            // Set up button actions
+            document.getElementById('kickUserBtn').onclick = () => {
+                kickUser(userName);
+                modal.style.display = 'none';
+            };
+            document.getElementById('banUserBtn').onclick = () => {
+                banUser(userName);
+                modal.style.display = 'none';
+            };
+            document.getElementById('muteUserBtn').onclick = () => {
+                muteUser(userName);
+                modal.style.display = 'none';
+            };
+
+            modal.style.display = 'flex';
+        }
+
+
         function handleCommand(command) {
             const parts = command.split(' ');
             const cmd = parts[0].toLowerCase();
@@ -2624,12 +2740,16 @@
                     addPrivateMessage('/AI fechar enquete - Encerra a enquete ativa.');
                     addPrivateMessage('/AI analisar sentimento - A Fox analisa o humor do chat.');
                     addPrivateMessage('/AI ideia criativa - A Fox gera uma ideia criativa.');
-                    if (isAdmin) {
-                        addPrivateMessage('Comandos de Admin:');
+                    if (isAdmin || isMod(myName)) { // Admins and Mods can use these
+                        addPrivateMessage('Comandos de Admin/Mod:');
                         addPrivateMessage('/Clear All - Limpa o chat para todos.');
                         addPrivateMessage('/Kick [Nome] [Motivo] - Expulsa um usuário.');
                         addPrivateMessage('/Ban [Nome] [Motivo] [Tempo] - Bane um usuário (ex: 10m, 2h, 0 para permanente).');
+                        addPrivateMessage('/Mute [Nome] - Silencia/Dessilencia um usuário.');
                         addPrivateMessage('/reload all - Recarrega a página para todos na sala.');
+                    }
+                    if (isAdmin) { // Only Admins can use these
+                        addPrivateMessage('Comandos de Admin (apenas):');
                         addPrivateMessage('/Admin [Nome] - Concede admin a alguém.');
                         addPrivateMessage('/Revoke-Admin [Nome] - Remove admin de alguém.');
                         addPrivateMessage('/Mod [Nome] - Concede moderador a alguém.');
@@ -2694,27 +2814,27 @@
                     updateAIBottonVisibility(); // Garante que os botões de IA voltem ao normal no menu
                     break;
                 case '/clear':
-                    if (isAdmin && parts[1] && parts[1].toLowerCase() === 'all') {
+                    if ((isAdmin || isMod(myName)) && parts[1] && parts[1].toLowerCase() === 'all') {
                         localStorage.removeItem(LOCAL_STORAGE_CHAT_PREFIX + roomID);
                         loadChatMessages(); // Limpa o chat na UI
                         addSystemMessage('O chat foi limpo por um administrador.');
-                    } else if (!isAdmin) {
+                    } else if (!isAdmin && !isMod(myName)) {
                         addPrivateMessage('Você não tem permissão para usar este comando.', true);
                     } else {
                         addPrivateMessage('Uso: /Clear All', true);
                     }
                     break;
                 case '/kick':
-                    if (isAdmin && targetUser) {
+                    if ((isAdmin || isMod(myName)) && targetUser) {
                         kickUser(targetUser, reason);
-                    } else if (!isAdmin) {
+                    } else if (!isAdmin && !isMod(myName)) {
                         addPrivateMessage('Você não tem permissão para usar este comando.', true);
                     } else {
                         addPrivateMessage('Uso: /Kick [Nome] [Motivo (opcional)]', true);
                     }
                     break;
                 case '/ban':
-                    if (isAdmin && targetUser) {
+                    if ((isAdmin || isMod(myName)) && targetUser) {
                         let banReason = parts.slice(2).join(' ');
                         let banDuration = 0; // 0 for permanent
 
@@ -2733,19 +2853,28 @@
                         }
 
                         banUser(targetUser, banReason, banDuration);
-                    } else if (!isAdmin) {
+                    } else if (!isAdmin && !isMod(myName)) {
                         addPrivateMessage('Você não tem permissão para usar este comando.', true);
                     } else {
                         addPrivateMessage('Uso: /Ban [Nome] [Motivo (opcional)] [Tempo (ex: 10m, 2h, 0 para permanente)]', true);
                     }
                     break;
+                case '/mute':
+                    if ((isAdmin || isMod(myName)) && targetUser) {
+                        muteUser(targetUser);
+                    } else if (!isAdmin && !isMod(myName)) {
+                        addPrivateMessage('Você não tem permissão para usar este comando.', true);
+                    } else {
+                        addPrivateMessage('Uso: /Mute [Nome]', true);
+                    }
+                    break;
                 case '/reload':
-                    if (isAdmin && parts[1] && parts[1].toLowerCase() === 'all') {
+                    if ((isAdmin || isMod(myName)) && parts[1] && parts[1].toLowerCase() === 'all') {
                         addSystemMessage('Um administrador solicitou o recarregamento da página para todos.');
                         localStorage.setItem(LOCAL_STORAGE_RELOAD_ALL + roomID, 'true');
                         // Força o recarregamento da própria aba do admin também
                         window.location.reload();
-                    } else if (!isAdmin) {
+                    } else if (!isAdmin && !isMod(myName)) {
                         addPrivateMessage('Você não tem permissão para usar este comando.', true);
                     } else {
                         addPrivateMessage('Uso: /reload all', true);
