@@ -118,11 +118,12 @@
             border:none;
             background:#222;
             color:#EEE;
-            resize: vertical; /* Permite redimensionar verticalmente */
-            max-height: 150px; /* Limite de altura para não "estourar" o layout */
-            min-height: 40px; /* Altura mínima para o textarea */
-            min-width: 100px; /* Largura mínima para o textarea */
-            overflow: auto; /* Garante que o conteúdo tenha scroll se o textarea for menor que o conteúdo */
+            resize: none; /* Fixed size, no resizing by user */
+            height: 40px; /* Fixed height */
+            min-height: 40px; /* Ensure it stays fixed */
+            max-height: 40px; /* Ensure it stays fixed */
+            min-width: 100px;
+            overflow: auto; /* Still allow scrolling if content overflows */
         }
         #sendChatBtn, #summarizeChatBtn {
             height: 40px; /* Ajusta altura dos botões para alinhar com o input */
@@ -289,6 +290,7 @@
         #aiButtonsPanel .btn {
             width: 100%;
             background-color: #28a745; /* Cor para sugestão */
+            text-align: center; /* Centraliza o texto dentro do botão */
         }
         #aiButtonsPanel .btn:nth-child(2) { /* Gerar Enquete */
             background-color: #007bff;
@@ -408,9 +410,10 @@
                 flex-wrap: wrap; /* Permite quebrar botões em nova linha se a tela for muito pequena */
             }
             #chatInput {
-                max-height: 100px; /* Limita a altura do input em mobile */
-                min-height: 35px; /* */
-                resize: vertical; /* Permite redimensionar verticalmente apenas em mobile */
+                max-height: 40px; /* Keep fixed height on mobile too */
+                min-height: 40px;
+                height: 40px;
+                resize: none;
             }
             /* Mostra o botão de enviar no mobile */
             #sendChatBtn {
@@ -431,6 +434,15 @@
                 margin-top: 0.5rem; /* Ajusta margem em mobile */
                 max-width: 100%; /* Ocupa largura total */
                 border-radius: 0; /* */
+            }
+
+            /* Make modal content take more space on mobile */
+            #fileMenuContent, #participantListContent, #playlistContent, #betaNoticeContent, .custom-modal-content {
+                width: 95%; /* Almost full width */
+                max-width: none; /* Remove max-width restriction */
+                max-height: 95vh; /* Allow content to be taller */
+                padding: 1rem; /* Adjust padding */
+                border-radius: 0; /* Remove border-radius for full screen feel */
             }
         }
 
@@ -468,8 +480,8 @@
                 min-width: 400px; /* Aumenta o tamanho mínimo dos modais */
                 max-width: 600px;
                 position: absolute; /* Permite posicionamento absoluto */
-                top: 50%;
-                left: 50%;
+                top: 50% ;
+                left: 50% ;
                 transform: translate(-50%, -50%); /* Centraliza modais */
             }
             /* Ajuste específico para posicionar modais próximos ao chat */
@@ -546,12 +558,12 @@
             </div>
             <div id="betaNoticeFixed" style="display: none;">
                 **ATENÇÃO!!! TENHA CUIDADO, VERSÃO BETA!!**<br>
-                Todo cuidado é pouco (Por Pane)
+                Todo cuidado é pouco (Pelo Desenvolvedor)
             </div>
             <div id="controls">
                 <button id="chooseMediaBtn" class="btn" aria-label="Abrir opções para adicionar mídia">Escolher Arquivo/Link/Tela</button>
                 <button id="showPlaylistBtn" class="btn" aria-label="Ver lista de reprodução">📃 Playlist</button>
-                <button id="showParticipantsBtn" class="btn" aria-label="Mostrar participantes da sala">👥 Participantes</button>
+                <button id="showParticipantsBtn" class="btn" aria-label="Mostrar usuários na sala">👥 Usuários na Sala</button>
                 
                 <!-- Novo botão para expandir/recolher os botões de IA -->
                 <button id="toggleAIButtonsBtn" class="btn" aria-label="Alternar visibilidade dos botões de IA">Botões de IA</button>
@@ -587,7 +599,7 @@
 
     <div id="participantListModal">
         <div id="participantListContent">
-            <button class="closeBtn" onclick="document.getElementById('participantListModal').style.display='none'" aria-label="Fechar lista de participantes">×</button>
+            <button class="closeBtn" onclick="document.getElementById('participantListModal').style.display='none'" aria-label="Fechar lista de usuários na sala">×</button>
             <div id="participantList"></div>
         </div>
     </div>
@@ -603,7 +615,7 @@
         <div id="betaNoticeContent">
             <p style="text-align: center;">
                 <strong style="color: #FFD700; font-size: 1.3em;">ATENÇÃO!!! TENHA CUIDADO, VERSÃO BETA!!</strong><br><br>
-                Todo cuidado é pouco (Por Pane)
+                Todo cuidado é pouco (Pelo Desenvolvedor)
             </p>
         </div>
     </div>
@@ -641,7 +653,11 @@
         let currentRoomAgeRestricted = false; // Nova variável para o estado de restrição de idade da sala
 
         let activePoll = null; // { id: "unique_id", question: "", options: [{ text: "", votes: 0, voters: [] }] }
-        let aiChatbotActive = false; // Flag para o chatbot de IA
+        
+        // AI State Variables
+        let aiChatbotActive = false; // Flag for general AI interaction
+        let aiSleeping = false; // Flag for AI sleeping state
+        const AI_BASE_NAME = '(IA) Fox :3'; // Base name for the AI
 
         // Dados que serão sincronizados via localStorage
         let playlist = [];
@@ -654,6 +670,8 @@
         const LOCAL_STORAGE_CHAT_PREFIX = 'myChatApp_chatMessages_'; // Prefixo para mensagens de chat
         const LOCAL_STORAGE_RELOAD_ALL = 'myChatApp_reloadAll_'; // Chave para forçar reload
         const LOCAL_STORAGE_ACTIVE_POLL = 'myChatApp_activePoll_'; // Chave para a enquete ativa
+
+        let tempFoxMessageElement = null; // To store the temporary message element for geolocation prompt
 
         // Custom Alert Function
         function customAlert(message) {
@@ -743,6 +761,9 @@
                 if (storedState) {
                     const state = JSON.parse(storedState);
                     state.bannedUsers = new Map(state.bannedUsers);
+                    // Load AI states
+                    aiSleeping = state.aiSleeping || false;
+                    aiChatbotActive = state.aiChatbotActive || false;
                     console.log(`[DEBUG_LS] Estado da sala ${id} carregado do localStorage. Participants:`, state.participants.map(p => p.name));
                     return state;
                 }
@@ -763,7 +784,9 @@
                 participants: participants,
                 playlist: playlist,
                 bannedUsers: Array.from(bannedUsers.entries()), // Converte Map para Array para JSON
-                ageRestricted: currentRoomAgeRestricted // Salva o estado de restrição de idade
+                ageRestricted: currentRoomAgeRestricted, // Salva o estado de restrição de idade
+                aiSleeping: aiSleeping, // Save AI sleeping state
+                aiChatbotActive: aiChatbotActive // Save AI active state
             };
             saveRoomState(roomID, state);
             console.log(`[DEBUG_LS] Estado da sala ${roomID} atualizado no localStorage. Participants:`, state.participants.map(p => p.name));
@@ -771,18 +794,25 @@
 
         function fetchAndUpdateLocalRoomData(id) {
             console.log(`[DEBUG_LS] fetchAndUpdateLocalRoomData called for room: ${id}`);
-            const state = loadRoomState(id);
+            const state = loadRoomState(id); // loadRoomState now handles aiSleeping and aiChatbotActive
             if (state) {
                 participants = state.participants;
                 playlist = state.playlist;
                 bannedUsers = state.bannedUsers;
-                currentRoomAgeRestricted = state.ageRestricted || false; // Carrega o estado de restrição de idade
-                updateParticipantList(); // Atualiza UI e força saveRoomState via participantList
-                updatePlaylist();       // Atualiza UI e força saveRoomState via playlist
-                updateAIBottonVisibility(); // Atualiza a visibilidade dos botões de IA
+                currentRoomAgeRestricted = state.ageRestricted || false;
+                aiSleeping = state.aiSleeping || false; // Load AI sleeping state
+                aiChatbotActive = state.aiChatbotActive || false; // Load AI active state
+                updateParticipantList();
+                updatePlaylist();
+                updateAIBottonVisibility();
+                updateAIFoxDisplay(); // Ensure Fox's name is correctly displayed after loading
                 console.log(`[DEBUG_LS] Dados da sala ${id} atualizados localmente. Current participants:`, [...participants]);
             } else {
                 console.log(`[DEBUG_LS] Nenhum estado encontrado para a sala ${id}. Não foi possível atualizar dados locais.`);
+                // If no state found, ensure AI is not active
+                aiSleeping = false;
+                aiChatbotActive = false;
+                participants = []; // Reset participants as well
             }
         }
 
@@ -839,10 +869,12 @@
              // Handle AI Chatbot auto-deactivation
             if (event.key === LOCAL_STORAGE_PREFIX + roomID) {
                 const newState = JSON.parse(event.newValue);
-                if (aiChatbotActive && newState && newState.participants.length > 1 && newState.participants.some(p => p.name !== myName)) {
-                    aiChatbotActive = false;
-                    addSystemMessage('Fox saiu da sala, pois outros participantes entraram.'); // Updated message
-                }
+                // The AI should only exit if explicitly told to, or if the admin closes the room.
+                // This automatic exit logic when other participants enter is removed per user request.
+                // if (aiChatbotActive && newState && newState.participants.length > 1 && newState.participants.some(p => p.name !== myName)) {
+                //     aiChatbotActive = false;
+                //     addSystemMessage('Fox saiu da sala, pois outros participantes entraram.'); // Updated message
+                // }
             }
         });
 
@@ -977,6 +1009,26 @@
             saveChatMessage(`${sender}: ${message}`, 'chat'); // Salva mensagens de chat
         }
 
+        // Function to add a temporary message locally (not saved to localStorage)
+        function addLocalTempMessage(sender, message) {
+            const chatLog = document.getElementById('chatLog');
+            const p = document.createElement('p');
+            p.textContent = `${sender}: ${message}`;
+            p.classList.add('system-message'); // Use system message style for temporary messages
+            chatLog.appendChild(p);
+            chatLog.scrollTop = chatLog.scrollHeight;
+            tempFoxMessageElement = p; // Store reference to this temporary message
+            return p;
+        }
+
+        // Function to remove the last temporary message
+        function removeTempMessage() {
+            if (tempFoxMessageElement && tempFoxMessageElement.parentNode) {
+                tempFoxMessageElement.parentNode.removeChild(tempFoxMessageElement);
+                tempFoxMessageElement = null; // Clear the reference
+            }
+        }
+
         // Funções para salvar e carregar mensagens de chat
         function saveChatMessage(message, type, isWarning = false) {
             let chatMessages = JSON.parse(localStorage.getItem(LOCAL_STORAGE_CHAT_PREFIX + roomID) || '[]');
@@ -1004,12 +1056,24 @@
             loadPollState(); // Garante que a enquete seja carregada após as mensagens
         }
 
+        // Function to update the AI Fox's display name in the participants list
+        function updateAIFoxDisplay() {
+            const foxIndex = participants.findIndex(p => p.isAI);
+            if (foxIndex !== -1) {
+                let currentFoxName = AI_BASE_NAME;
+                if (aiSleeping) {
+                    currentFoxName += ' (Dormindo💤)';
+                }
+                participants[foxIndex].name = currentFoxName;
+                updateParticipantList(); // Re-render list and save state
+            }
+        }
 
         function updateParticipantList() {
             const list = document.getElementById('participantList');
             list.innerHTML = '';
             if (participants.length === 0) {
-                list.textContent = 'Nenhum participante na sala.';
+                list.textContent = 'Nenhum usuário na sala.';
                 return;
             }
             participants.forEach(p => {
@@ -1018,10 +1082,17 @@
                 let role = '';
                 if (p.isAdmin) role = '(admin)';
                 else if (p.isMod) role = '(mod)';
-                div.textContent = `${p.name} ${role}`;
+                
+                let displayName = p.name;
+                // If it's the AI, ensure its name is updated based on its state
+                if (p.isAI) {
+                    displayName = aiSleeping ? `${AI_BASE_NAME} (Dormindo💤)` : AI_BASE_NAME;
+                }
+
+                div.textContent = `${displayName} ${role}`;
 
                 // Adicionar botões de ação para o admin (kick/ban)
-                if (isAdmin && p.name !== myName) { // Admin não pode dar kick/ban em si mesmo
+                if (isAdmin && p.name !== myName && !p.isAI) { // Admin não pode dar kick/ban em si mesmo ou na IA
                     const kickBtn = document.createElement('button');
                     kickBtn.textContent = 'Kick';
                     kickBtn.className = 'btn';
@@ -1263,7 +1334,7 @@
             const existingRoom = activeRooms.find(r => r.id === roomID);
 
             if (!existingRoom) {
-                const createNew = await customConfirm(`A sala ${roomID} não existe. Deseja criá-la?`); // Usar customConfirm
+                const createNew = await customConfirm(`A sala ${roomID} não existe. Deseja criar uma Sala?`); // Usar customConfirm
                 if (createNew) {
                     // Se o usuário optar por criar, simula o clique no botão "Criar Sala"
                     // e preenche o input com o código para que o fluxo de criação o use.
@@ -1399,18 +1470,22 @@
             isAdmin = adminStatus;
             cleanOldChatMessages();
             
-            // Explicitamente re-fetch the latest room state just before adding the participant
+            // Explicitly re-fetch the latest room state just before adding the participant
             // This is to ensure we get the most up-to-date participants list from the admin's approval
-            const latestRoomState = loadRoomState(roomID);
+            const latestRoomState = loadRoomState(roomID); // This also loads aiSleeping and aiChatbotActive
             if (latestRoomState) {
                 participants = latestRoomState.participants;
                 playlist = latestRoomState.playlist;
                 bannedUsers = latestRoomState.bannedUsers;
                 currentRoomAgeRestricted = latestRoomState.ageRestricted || false;
+                // aiSleeping and aiChatbotActive are already loaded by loadRoomState
                 console.log(`[CLIENT DEBUG] Re-fetched latest participants in enterRoomConfirmed:`, [...participants]);
             } else {
                 console.warn(`[CLIENT DEBUG] Could not load latest room state in enterRoomConfirmed. Initializing participants.`);
                 participants = []; // Ensure it's an empty array if no state found
+                // Reset AI states if no room state found
+                aiSleeping = false;
+                aiChatbotActive = false;
             }
 
             loadChatMessages(); // Load chat messages based on the potentially updated roomID
@@ -1418,15 +1493,22 @@
             // Now, add the current user to the participants list if they are not already there.
             // This handles cases where the localStorage update might have been delayed or missed.
             if (!participants.some(p => p.name === myName)) {
-                participants.push({ name: myName, isAdmin: isAdmin, isMod: false });
+                participants.push({ name: myName, isAdmin: isAdmin, isMod: false, isAI: false }); // Ensure isAI is false for human users
                 console.log(`[CLIENT DEBUG] Added ${myName} to participants. Final list:`, [...participants]);
                 addSystemMessage(`${myName} entrou na sala.`);
             } else {
                 console.log(`[CLIENT DEBUG] ${myName} already found in participants list after re-fetch. No need to re-add.`);
                 addSystemMessage(`${myName} entrou na sala.`); // Still show the message
             }
+            
+            // If AI was active in the loaded state, ensure it's added/updated in the list
+            if (aiChatbotActive && !participants.some(p => p.isAI)) {
+                participants.push({ name: AI_BASE_NAME, isAdmin: false, isMod: false, isAI: true });
+            }
 
             updateParticipantList(); // Update UI and save to localStorage (this will trigger storage event for others)
+            updateAIFoxDisplay(); // Ensure Fox's name is correctly displayed after loading
+
 
             if (isAdmin) {
                 document.getElementById('betaNoticeFixed').style.display = 'block';
@@ -1443,7 +1525,9 @@
             console.log(`[DEBUG] addParticipant called for: ${name}. Current participants before check:`, [...participants]);
             // Evita adicionar o mesmo participante múltiplas vezes
             if (!participants.some(p => p.name === name)) {
-                participants.push({ name: name, isAdmin: admin, isMod: false });
+                // Check if it's the AI being added, if so, mark it as isAI
+                const isAI = (name === AI_BASE_NAME || name.startsWith(AI_BASE_NAME + ' (Dormindo'));
+                participants.push({ name: name, isAdmin: admin, isMod: false, isAI: isAI });
                 console.log(`[DEBUG] ${name} added to participants. New list:`, [...participants]);
                 updateParticipantList();
                 addSystemMessage(`${name} entrou na sala.`);
@@ -1465,6 +1549,8 @@
             currentJoinRequestId = null;
             clearTimeout(approvalTimeout);
             currentRoomAgeRestricted = false; // Reseta a flag de restrição de idade
+            aiSleeping = false; // Reset AI sleeping state
+            aiChatbotActive = false; // Reset AI active state
             updateAIBottonVisibility(); // Garante que os botões de IA voltem ao normal no menu
         };
 
@@ -1696,9 +1782,65 @@
                     // Isso envia a mensagem para outras abas/clientes via localStorage
                     saveChatMessage(`${myName}: ${message}`, 'chat');
 
-                    // Se a Fox estiver ativa e houver apenas 1 participante (o próprio usuário)
-                    if (aiChatbotActive && participants.length === 1 && participants[0].name === myName) {
+                    // Check for @Fox mention to activate
+                    if (message.toLowerCase().includes('@fox') && !currentRoomAgeRestricted) {
+                        // If Fox is not active, activate her and send the welcome message
+                        if (!aiChatbotActive) {
+                            aiChatbotActive = true;
+                            aiSleeping = false; // Ensure Fox is awake when activated
+                            // Add Fox to participants if not already there
+                            if (!participants.some(p => p.isAI)) {
+                                participants.push({ name: AI_BASE_NAME, isAdmin: false, isMod: false, isAI: true });
+                                updateParticipantList(); // This will save to localStorage
+                            }
+                            updateAIFoxDisplay(); // Ensure display name is correct
+                            updateAIBottonVisibility(); // Show AI buttons
+
+                            // Construct and send initial message from Fox
+                            let initialMessage = "Oii :3.\n";
+                            initialMessage += `Como você está ${myName}?\n`;
+
+                            let mediaDescription = '';
+                            if (currentMediaState.name && currentMediaState.name !== 'Link Externo' && currentMediaState.url) {
+                                let mediaTypeDisplay = '';
+                                if (currentMediaState.type === 'youtube' || currentMediaState.type === 'vimeo' || currentMediaState.type === 'dailymotion') {
+                                    mediaTypeDisplay = 'vídeo';
+                                } else if (currentMediaState.type === 'twitch_live' || currentMediaState.type === 'twitch_vod') {
+                                    mediaTypeDisplay = 'live';
+                                } else if (currentMediaState.type === 'file' || currentMediaState.type === 'direct_link') {
+                                    mediaTypeDisplay = 'arquivo local';
+                                } else {
+                                    mediaTypeDisplay = 'mídia';
+                                }
+                                mediaDescription = `Vejo que você está assistindo a um ${mediaTypeDisplay}: "${currentMediaState.name}".`;
+                            } else {
+                                mediaDescription = "Parece que não há nenhuma mídia sendo reproduzida no momento.";
+                            }
+                            initialMessage += `${mediaDescription}\n`;
+
+                            const humanParticipantsCount = participants.filter(p => !p.isAI).length;
+                            if (humanParticipantsCount > 1) { // If more than just the user who mentioned Fox
+                                initialMessage += "E vejo que você está com amigos! Que legal!\n";
+                            }
+
+                            initialMessage += "Precisa de alguma ajuda ou só querem conversar mesmo? :3";
+                            addChatMessage('Fox', initialMessage);
+                        }
+                        
+                        // Now, send the rest of the user's message to Fox for a general response
+                        // This ensures Fox responds to the full message, even after the initial welcome
+                        const userMessageWithoutMention = message.replace(/@fox/gi, '').trim();
+                        if (userMessageWithoutMention && !aiSleeping) { // Only respond if not sleeping
+                            getAIChatbotResponse(userMessageWithoutMention);
+                        } else if (aiSleeping) {
+                            addPrivateMessage('A Fox está dormindo e não responderá até que seja acordada com "/AI wake".', true);
+                        }
+
+                    } else if (aiChatbotActive && !aiSleeping) {
+                        // If Fox is already active, just send the full message to her
                         getAIChatbotResponse(message);
+                    } else if (aiSleeping) {
+                        addPrivateMessage('A Fox está dormindo e não responderá até que seja acordada com "/AI wake".', true);
                     }
                 }
                 chatInput.value = '';
@@ -1717,10 +1859,12 @@
         });
 
         // Auto-redimensionar o textarea do chat
+        /* REMOVIDO:
         chatInput.addEventListener('input', function () {
             this.style.height = 'auto';
             this.style.height = (this.scrollHeight) + 'px';
         });
+        */
 
         // --- Gemini API Integration: Chat Summarizer ---
         document.getElementById('summarizeChatBtn').onclick = async () => {
@@ -1833,7 +1977,8 @@
                     addSystemMessage('Não foi possível gerar sugestões de conteúdo. Tente novamente mais tarde.');
                     console.error('Gemini API response structure unexpected:', result);
                 }
-            } catch (error) {
+            }
+            catch (error) {
                 console.error('Error calling Gemini API:', error);
                 addSystemMessage('Ocorreu um erro ao tentar gerar sugestões de conteúdo. Verifique sua conexão ou tente novamente.');
             }
@@ -1926,7 +2071,7 @@
 
                 const recentMessages = chatMessages.slice(-20).map(msg => msg.message).join('\n'); // Analyze last 20 messages
 
-                const prompt = `Analise o sentimento geral das seguintes mensagens de chat. Responda com uma frase concisa descrevendo o humor predominante (ex: "O clima no chat está animado!", "Parece que o chat está um pouco quieto e pensativo.", "O chat tem um tom neutro."). Mensagens:\n\n${recentMessages}`;
+                const prompt = `Analise o sentimento geral das seguintes mensagens de chat. Responda com uma frase concisa descrevendo o humor predominante (ex: "O clima no chat está animado!", "Parece que o chat está um pouco quieto e pensativo.", "O chat tem um ton neutro."). Mensagens:\n\n${recentMessages}`;
 
                 let chatHistory = [];
                 chatHistory.push({ role: "user", parts: [{ text: prompt }] });
@@ -2199,34 +2344,41 @@
 
         // --- AI Chatbot ---
         async function getAIChatbotResponse(userMessage) {
+            // If AI is sleeping, it does not respond to general chat messages.
+            if (aiSleeping) {
+                return;
+            }
+
             addSystemMessage('Fox está pensando...'); // Updated message
             try {
-                // First, try to detect if it's a media playback request
-                const mediaRequestPrompt = `O usuário está pedindo para eu reproduzir um vídeo ou áudio? Se sim, extraia o link ou o nome do conteúdo. Responda em JSON.
+                // Combined LLM query for intent detection
+                const intentDetectionPrompt = `Analise a seguinte mensagem do usuário e determine a intenção principal. Responda em JSON.
                 {
-                    "isMediaRequest": boolean,
-                    "mediaType": "link" | "search" | null,
-                    "mediaContent": string | null,
-                    "mediaName": string | null // Name for the playlist
+                    "intent": "time_query" | "media_request" | "user_agent_query" | "general_chat",
+                    "location": "Brasília" | "current_location" | null, // For time queries
+                    "mediaType": "link" | "search" | null, // For media requests
+                    "mediaContent": string | null, // For media requests
+                    "mediaName": string | null // For media requests
                 }
                 Mensagem do usuário: "${userMessage}"`;
 
-                let chatHistory = [];
-                chatHistory.push({ role: "user", parts: [{ text: mediaRequestPrompt }] });
+                let chatHistoryIntent = [];
+                chatHistoryIntent.push({ role: "user", parts: [{ text: intentDetectionPrompt }] });
 
-                const mediaPayload = {
-                    contents: chatHistory,
+                const intentPayload = {
+                    contents: chatHistoryIntent,
                     generationConfig: {
                         responseMimeType: "application/json",
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
-                                "isMediaRequest": { "type": "BOOLEAN" },
-                                "mediaType": { "type": "STRING", "enum": ["link", "search", "null"] },
+                                "intent": { "type": "STRING", "enum": ["time_query", "media_request", "user_agent_query", "general_chat"] },
+                                "location": { "type": "STRING", "enum": ["Brasília", "current_location", "null"], "nullable": true },
+                                "mediaType": { "type": "STRING", "enum": ["link", "search", "null"], "nullable": true },
                                 "mediaContent": { "type": "STRING", "nullable": true },
                                 "mediaName": { "type": "STRING", "nullable": true }
                             },
-                            "propertyOrdering": ["isMediaRequest", "mediaType", "mediaContent", "mediaName"]
+                            "propertyOrdering": ["intent", "location", "mediaType", "mediaContent", "mediaName"]
                         }
                     }
                 };
@@ -2234,38 +2386,75 @@
                 const apiKey = ""; // Leave as-is, Canvas will provide it
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
-                const mediaResponse = await fetch(apiUrl, {
+                const intentResponse = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(mediaPayload)
+                    body: JSON.stringify(intentPayload)
                 });
 
-                const mediaResult = await mediaResponse.json();
-                let mediaRequest = { isMediaRequest: false };
+                const intentResult = await intentResponse.json();
+                let parsedIntent = { intent: "general_chat" }; // Default to general chat
 
-                if (mediaResult.candidates && mediaResult.candidates.length > 0 &&
-                    mediaResult.candidates[0].content && mediaResult.candidates[0].content.parts &&
-                    mediaResult.candidates[0].content.parts.length > 0) {
+                if (intentResult.candidates && intentResult.candidates.length > 0 &&
+                    intentResult.candidates[0].content && intentResult.candidates[0].content.parts &&
+                    intentResult.candidates[0].content.parts.length > 0) {
                     try {
-                        mediaRequest = JSON.parse(mediaResult.candidates[0].content.parts[0].text);
-                        // Ensure mediaType is valid
-                        if (!["link", "search", "null"].includes(mediaRequest.mediaType)) {
-                            mediaRequest.mediaType = null;
-                        }
+                        parsedIntent = JSON.parse(intentResult.candidates[0].content.parts[0].text);
                     } catch (e) {
-                        console.error('Failed to parse media request JSON:', e);
-                        mediaRequest = { isMediaRequest: false }; // Fallback to non-media request
+                        console.error('Failed to parse intent JSON:', e);
                     }
                 }
 
-                if (mediaRequest.isMediaRequest && mediaRequest.mediaContent) {
+                // Handle intents
+                if (parsedIntent.intent === 'time_query') {
+                    if (parsedIntent.location === 'Brasília') {
+                        const brasiliaTime = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' });
+                        addChatMessage('Fox', `Em Brasília, agora são: ${brasiliaTime}.`);
+                    } else { // current_location or general time query
+                        addLocalTempMessage('Fox', 'Para te dizer as horas exatas da sua localização, preciso da sua permissão. Por favor, aceite a solicitação do navegador.');
+
+                        if (navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition(
+                                (position) => {
+                                    removeTempMessage(); // Remove the temporary message
+                                    const now = new Date();
+                                    const localTime = now.toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' });
+                                    addChatMessage('Fox', `Na sua localização, agora são: ${localTime}.`);
+                                },
+                                (error) => {
+                                    removeTempMessage(); // Remove the temporary message
+                                    let errorMessage = 'Não consegui obter sua localização.';
+                                    if (error.code === error.PERMISSION_DENIED) {
+                                        errorMessage += ' A permissão foi negada.';
+                                    } else if (error.code === error.POSITION_UNAVAILABLE) {
+                                        errorMessage += ' A informação de localização não está disponível.';
+                                    } else if (error.code === error.TIMEOUT) {
+                                        errorMessage += ' A solicitação de localização expirou.';
+                                    }
+                                    addChatMessage('Fox', `Ops! ${errorMessage} Não posso te dizer as horas exatas sem ela. 😢`);
+                                    console.error('Geolocation error:', error);
+                                },
+                                {
+                                    enableHighAccuracy: false, // Not strictly needed for time, but good for general location
+                                    timeout: 5000, // 5 seconds to get location
+                                    maximumAge: 0 // Get fresh location, equivalent to "only this time" for a new request
+                                }
+                            );
+                        } else {
+                            removeTempMessage(); // Remove the temporary message
+                            addChatMessage('Fox', 'Seu navegador não suporta a API de Geolocation. Não posso te dizer as horas exatas da sua localização. 😢');
+                        }
+                    }
+                } else if (parsedIntent.intent === 'user_agent_query') {
+                    addChatMessage('Fox', `Hmm, deixe-me ver... Seu User Agent é: "${navigator.userAgent}". É assim que os navegadores se identificam! 😉`);
+                } else if (parsedIntent.intent === 'media_request' && parsedIntent.mediaContent) {
                     let playedSuccessfully = false;
-                    let mediaToPlay = mediaRequest.mediaContent;
+                    let mediaToPlay = parsedIntent.mediaContent;
                     let mediaType = 'link'; // Default to link, will be refined by playAndBroadcast
-                    let mediaName = mediaRequest.mediaName || 'Conteúdo Solicitado';
+                    let mediaName = parsedIntent.mediaName || 'Conteúdo Solicitado';
 
                     // Try to play directly if it's a link request
-                    if (mediaRequest.mediaType === 'link') {
+                    if (parsedIntent.mediaType === 'link') {
                         // Attempt to determine media type more accurately before calling playAndBroadcast
                         const youtubeMatch = mediaToPlay.match(/(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
                         const twitchMatch = mediaToPlay.match(/(?:twitch\.tv\/([a-zA-Z0-9_]+)(?:\/videos\/(\d+))?)/);
@@ -2296,19 +2485,19 @@
                             mediaType = 'direct_link';
                         } else {
                             // If it's not a recognized embeddable link, treat as search
-                            mediaRequest.mediaType = 'search';
-                            mediaName = mediaRequest.mediaContent; // Use the original content as search query
+                            parsedIntent.mediaType = 'search';
+                            mediaName = parsedIntent.mediaContent; // Use the original content as search query
                         }
 
-                        if (mediaRequest.mediaType === 'link') { // Only try to play if it's still considered a direct link
+                        if (parsedIntent.mediaType === 'link') { // Only try to play if it's still considered a direct link
                             playedSuccessfully = playAndBroadcast(mediaToPlay, mediaType, mediaName, true);
                         }
                     }
 
                     // If direct play failed or it's a search request, try Google Search
-                    if (!playedSuccessfully && mediaRequest.mediaType === 'search') {
-                        addSystemMessage(`Fox: Não consegui reproduzir diretamente. Vou tentar pesquisar por "${mediaRequest.mediaContent}"...`);
-                        const searchResults = await google_search.search(queries=[mediaRequest.mediaContent]);
+                    if (!playedSuccessfully && parsedIntent.mediaType === 'search') {
+                        addSystemMessage(`Fox: Não consegui reproduzir diretamente. Vou tentar pesquisar por "${parsedIntent.mediaContent}"...`);
+                        const searchResults = await google_search.search(queries=[parsedIntent.mediaContent]);
                         
                         let foundSearchLink = null;
                         let foundSearchType = null;
@@ -2379,7 +2568,7 @@
                         addChatMessage('Fox', `Desculpe, não consegui reproduzir o link que você me deu. Tem certeza que está correto?`);
                     }
                 } else {
-                    // If not a media request, proceed with general conversation
+                    // General conversation
                     const generalPrompt = `Você é uma chatbot amigável chamada Fox em uma sala de chat. Responda à seguinte mensagem do usuário de forma concisa e útil, mantendo a conversa fluida. Mensagem do usuário: "${userMessage}"`;
 
                     let generalChatHistory = [];
@@ -2402,6 +2591,8 @@
                     } else {
                         addSystemMessage('Fox: Não consegui gerar uma resposta. Tente novamente.');
                         console.error('Gemini API response structure unexpected for chatbot:', generalResult);
+                        // Add more detailed logging for debugging
+                        console.error('Full Gemini API response for chatbot:', generalResult);
                     }
                 }
             } catch (error) {
@@ -2426,7 +2617,9 @@
                     addPrivateMessage('/sendlink [link] - Envia um link (visível para todos).');
                     addPrivateMessage('/code - Mostra o código da sala.');
                     addPrivateMessage('/exit - Sai da sala.');
-                    addPrivateMessage('/AI entrar - Ativa a Fox (se estiver sozinho).'); // Updated message
+                    addPrivateMessage('/AI sleep - Faz a Fox parar de interagir com o chat.');
+                    addPrivateMessage('/AI wake - Faz a Fox voltar a interagir no chat.');
+                    addPrivateMessage('/AI exit - Faz a Fox sair da sala.');
                     addPrivateMessage('/AI gerar enquete [pergunta]? [Opção 1]; [Opção 2]; ... - Cria uma enquete.');
                     addPrivateMessage('/AI fechar enquete - Encerra a enquete ativa.');
                     addPrivateMessage('/AI analisar sentimento - A Fox analisa o humor do chat.');
@@ -2496,6 +2689,8 @@
                     currentJoinRequestId = null;
                     clearTimeout(approvalTimeout);
                     currentRoomAgeRestricted = false; // Reseta a flag de restrição de idade
+                    aiSleeping = false; // Reset AI sleeping state
+                    aiChatbotActive = false; // Reset AI active state
                     updateAIBottonVisibility(); // Garante que os botões de IA voltem ao normal no menu
                     break;
                 case '/clear':
@@ -2648,13 +2843,33 @@
                         addPrivateMessage('Funcionalidades de IA estão desativadas em salas com restrição de idade.', true);
                         return;
                     }
-                    if (aiSubCommand === 'entrar') {
-                        if (participants.length === 1 && participants[0].name === myName) {
-                            aiChatbotActive = true;
-                            addSystemMessage('A Fox entrou na sala para conversar com você! Diga olá!'); // Updated message
-                        } else {
-                            addPrivateMessage('A Fox só pode entrar se você for o único na sala.', true); // Updated message
+                    if (aiSubCommand === 'sleep') {
+                        if (!aiChatbotActive) {
+                            addPrivateMessage('A Fox não está ativa no momento para dormir. Mencione-a com "@Fox" para ativá-la.', true);
+                            return;
                         }
+                        aiSleeping = true;
+                        updateAIFoxDisplay(); // Update display to show sleeping status
+                        addSystemMessage('A Fox foi dormir. Ela não responderá a mensagens até que seja acordada.');
+                    } else if (aiSubCommand === 'wake') {
+                        if (!aiChatbotActive) {
+                            addPrivateMessage('A Fox não está ativa no momento para acordar. Mencione-a com "@Fox" para ativá-la.', true);
+                            return;
+                        }
+                        aiSleeping = false;
+                        updateAIFoxDisplay(); // Update display to show awake status
+                        addSystemMessage('A Fox acordou e está pronta para interagir novamente!');
+                    } else if (aiSubCommand === 'exit') {
+                        if (!aiChatbotActive) {
+                            addPrivateMessage('A Fox não está ativa no momento para sair.', true);
+                            return;
+                        }
+                        // Remove Fox from participants
+                        participants = participants.filter(p => !p.isAI); // Filter out the AI participant
+                        aiChatbotActive = false;
+                        aiSleeping = false; // Reset sleeping state
+                        updateParticipantList(); // Update UI and save state
+                        addSystemMessage('A Fox saiu da sala. Sentirei saudades! 😢');
                     } else if (aiSubCommand === 'gerar' && parts[2] === 'enquete') {
                         if (activePoll) {
                             customAlert('Já existe uma enquete ativa. Feche a enquete atual antes de criar uma nova.');
@@ -2696,7 +2911,7 @@
                         generateCreativePrompt();
                     }
                     else {
-                        addPrivateMessage(`Subcomando /AI desconhecido: ${aiSubCommand}. Use '/AI entrar', '/AI gerar enquete', '/AI fechar enquete', '/AI analisar sentimento', ou '/AI ideia criativa'.`, true);
+                        addPrivateMessage(`Subcomando /AI desconhecido: ${aiSubCommand}. Use '/AI sleep', '/AI wake', '/AI exit', '/AI gerar enquete', '/AI fechar enquete', '/AI analisar sentimento', ou '/AI ideia criativa'.`, true);
                     }
                     break;
                 default:
@@ -2716,8 +2931,22 @@
                     betaModal.style.display = 'none';
                 }, 5000); // Exibe por 5 segundos
             }
+            // Initialize AI states on load
+            aiSleeping = false;
+            aiChatbotActive = false;
             updateAIBottonVisibility(); // Garante que os botões de IA estejam ocultos no início se a sala for restrita
             loadPollState(); // Carrega o estado da enquete ao iniciar
+
+            // Adiciona event listeners para os botões de modal
+            document.getElementById('chooseMediaBtn').onclick = () => {
+                document.getElementById('fileMenuModal').style.display = 'flex';
+            };
+            document.getElementById('showPlaylistBtn').onclick = () => {
+                document.getElementById('playlistModal').style.display = 'flex';
+            };
+            document.getElementById('showParticipantsBtn').onclick = () => {
+                document.getElementById('participantListModal').style.display = 'flex';
+            };
         });
 
         // Fechar o modal beta
