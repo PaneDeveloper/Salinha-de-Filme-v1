@@ -139,7 +139,7 @@
         }
 
         /* Estilos dos Modais (Padrão para Telas Maiores) */
-        #fileMenuModal, #participantListModal, #playlistModal, #betaNoticeModal, #participantActionsModal{
+        #fileMenuModal, #participantListModal, #playlistModal, #betaNoticeModal, #participantActionsModal, #screenShareAiPromptModal{
             position:fixed; /* */
             top:0; /* */
             left:0; /* */
@@ -151,7 +151,7 @@
             align-items:center;
             z-index:9999;
         }
-        #fileMenuContent, #participantListContent, #playlistContent, #betaNoticeContent, #participantActionsContent{
+        #fileMenuContent, #participantListContent, #playlistContent, #betaNoticeContent, #participantActionsContent, #screenShareAiPromptModal .custom-modal-content{
             background:#333; /* */
             padding:1.5rem; /* */
             border-radius:8px;
@@ -659,6 +659,17 @@
                 <button id="kickUserBtn" class="btn" style="background-color: #dc3545;">Expulsar</button>
                 <button id="banUserBtn" class="btn" style="background-color: #6c757d;">Banir</button>
                 <button id="muteUserBtn" class="btn" style="background-color: #007bff;">Silenciar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Screen Share AI Prompt Modal -->
+    <div id="screenShareAiPromptModal" class="custom-modal">
+        <div class="custom-modal-content">
+            <p id="screenShareAiPromptMessage"></p>
+            <div class="custom-modal-buttons">
+                <button id="screenShareAiPromptYesBtn" class="btn">Sim, me ajude!</button>
+                <button id="screenShareAiPromptNoBtn" class="btn" style="background-color: #dc3545;">Não, obrigado.</button>
             </div>
         </div>
     </div>
@@ -1319,6 +1330,7 @@
             document.getElementById('rejectedNotice').style.display = 'none';
             document.getElementById('ageVerificationModal').style.display = 'none'; // Esconde o modal de idade
             document.getElementById('participantActionsModal').style.display = 'none'; // Esconde o modal de ações de participante
+            document.getElementById('screenShareAiPromptModal').style.display = 'none'; // Esconde o modal de prompt da IA
             document.getElementById(screenId).style.display = 'flex'; // Usar 'flex' para as telas modais
         }
 
@@ -1728,14 +1740,50 @@
                 externalPlayer.style.display = 'none';
                 mediaPlayer.play();
                 addSystemMessage('Compartilhando sua tela. Outros usuários verão seu stream em breve.');
-                // Para sincronizar, você precisaria de um servidor de streaming de verdade
-                // Aqui, apenas simula o play localmente
                 document.getElementById('fileMenuModal').style.display = 'none';
+
+                // Show the AI prompt for screen sharing
+                showScreenShareAiPrompt();
+
             } catch (err) {
                 console.error('Erro ao iniciar compartilhamento de tela:', err);
                 addPrivateMessage('Não foi possível iniciar o compartilhamento de tela.', true);
             }
         };
+
+        // New function to show the screen share AI prompt
+        async function showScreenShareAiPrompt() {
+            const modal = document.getElementById('screenShareAiPromptModal');
+            const messageElem = document.getElementById('screenShareAiPromptMessage');
+            const yesBtn = document.getElementById('screenShareAiPromptYesBtn');
+            const noBtn = document.getElementById('screenShareAiPromptNoBtn');
+
+            messageElem.innerHTML = `Fox: Olá! Percebi que você está compartilhando sua tela. Quer que eu tente entender o que está acontecendo nela para te ajudar? (Lembre-se que eu só posso 'ver' o que você descrever ou o que eu puder inferir de informações públicas, não posso ver sua tela diretamente por aqui!)`;
+            modal.style.display = 'flex';
+
+            // Use a promise to wait for user interaction
+            const userResponse = await new Promise(resolve => {
+                const clickHandler = (event) => {
+                    if (event.target === yesBtn) {
+                        resolve(true);
+                    } else if (event.target === noBtn) {
+                        resolve(false);
+                    } else if (event.target === modal) { // Click outside modal
+                        resolve(false);
+                    }
+                    modal.removeEventListener('click', clickHandler); // Remove listener after interaction
+                };
+                modal.addEventListener('click', clickHandler);
+            });
+
+            modal.style.display = 'none'; // Hide modal after response
+
+            if (userResponse) {
+                addChatMessage('Fox', `Ótimo! Para eu te ajudar com o que está na sua tela, por favor, descreva o que você gostaria que eu analisasse ou sobre o que você quer ajuda. Por exemplo: 'Fox, o que você acha dessa planilha?' ou 'Fox, me ajude a encontrar informações sobre o que está no meu navegador agora.'`);
+            } else {
+                addPrivateMessage('Ok então, tudo bem! :3 Quando quiser ajuda com a tela é só usar o comando /ai screencast', false);
+            }
+        }
 
 
         // Função de sincronização do player (simplificada para localStorage)
@@ -2414,7 +2462,14 @@
 
             addSystemMessage('Fox está pensando...'); // Updated message
             try {
-                // Simplified intent detection prompt and schema
+                let extractedUrl = null;
+                const urlRegex = /(https?:\/\/[^\s]+)/g;
+                const urlMatches = userMessage.match(urlRegex);
+                if (urlMatches && urlMatches.length > 0) {
+                    extractedUrl = urlMatches[0]; // Take the first URL found
+                }
+
+                // Prompt for intent detection (without asking for content extraction by LLM)
                 const intentDetectionPrompt = `Analise a seguinte mensagem do usuário e determine a intenção principal.
                 Responda em JSON com apenas a "intent".
                 {
@@ -2439,7 +2494,7 @@
                     }
                 };
 
-                // START API KEY MODIFICATION
+                // START API KEY MODIFICATION - COLOQUE SUA CHAVE AQUI!
                 const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
@@ -2463,14 +2518,6 @@
                         // Fallback to general chat if parsing fails
                         parsedIntent = { intent: "general_chat" };
                     }
-                }
-
-                // Extract URL from user message if an intent related to URL is detected
-                let extractedUrl = null;
-                const urlRegex = /(https?:\/\/[^\s]+)/g;
-                const urlMatches = userMessage.match(urlRegex);
-                if (urlMatches && urlMatches.length > 0) {
-                    extractedUrl = urlMatches[0]; // Take the first URL found
                 }
 
                 // Handle intents
@@ -2529,7 +2576,7 @@
                     // If not a media link or user declined playback, explain limitation
                     addChatMessage('Fox', `Desculpe, não consigo "navegar" diretamente em links externos como ${extractedUrl} do meu ambiente aqui no navegador devido a restrições de segurança (CORS).`);
                     
-                    // Optional: Ask LLM to summarize the URL string itself if it's not a media link
+                    // Ask LLM to summarize the URL string itself
                     const urlSummaryPrompt = `Resuma brevemente o que você espera encontrar em uma página com a URL: ${extractedUrl}. Mencione o domínio principal e o tipo de conteúdo que a URL sugere.`;
                     let urlSummaryChatHistory = [];
                     urlSummaryChatHistory.push({ role: "user", parts: [{ text: urlSummaryPrompt }] });
@@ -2555,7 +2602,7 @@
                 }
 
                 if (parsedIntent.intent === 'time_query') {
-                    if (parsedIntent.location === 'Brasília') {
+                    if (userMessage.toLowerCase().includes('brasília')) { // Simple check for "Brasília"
                         const brasiliaTime = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' });
                         addChatMessage('Fox', `Em Brasília, agora são: ${brasiliaTime}.`);
                     } else { // current_location or general time query
@@ -2595,11 +2642,16 @@
                     }
                 } else if (parsedIntent.intent === 'user_agent_query') {
                     addChatMessage('Fox', `Hmm, deixe-me ver... Seu User Agent é: "${navigator.userAgent}". É assim que os navegadores se identificam! 😉`);
-                } else if (parsedIntent.intent === 'media_request' && extractedUrl) { // Use extractedUrl for media requests
+                } else if (parsedIntent.intent === 'media_request') { // Removed `&& extractedUrl` here, handle missing URL inside
                     let playedSuccessfully = false;
-                    let mediaToPlay = extractedUrl;
-                    let mediaType = 'link'; // Default to link, will be refined by playAndBroadcast
+                    let mediaToPlay = extractedUrl; // Use extractedUrl for media requests
+                    let mediaType = 'link'; // Default to link, will be refined
                     let mediaName = 'Conteúdo Solicitado';
+
+                    if (!extractedUrl) { // If no URL was extracted, it's likely a search query
+                        addChatMessage('Fox', `Desculpe, não consigo pesquisar por mídias diretamente. Por favor, me forneça um link direto para o vídeo ou áudio que você quer que eu reproduza.`);
+                        return;
+                    }
 
                     // Attempt to determine media type more accurately before calling playAndBroadcast
                     const youtubeMatch = mediaToPlay.match(/(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
@@ -2635,7 +2687,6 @@
                     } else if (directMediaMatch) {
                         mediaType = 'direct_link';
                     } else {
-                        // If it's not a recognized embeddable link, treat as search (but we can't search directly)
                         addChatMessage('Fox', `Desculpe, não consigo reproduzir este link diretamente. Parece que não é um formato de mídia que eu reconheça para o player.`);
                         return;
                     }
@@ -2648,15 +2699,15 @@
                     }
                 } else {
                     // General conversation
-                    // Updated prompt to include environment context
-                    const generalPrompt = `Você é uma chatbot amigável chamada Fox em uma sala de chat com um player de áudio e vídeo HTML/CSS/JS. Você pode ajudar os usuários com tarefas relacionadas ao player (como reproduzir links, pesquisar conteúdo) e também conversar sobre tópicos gerais. Responda à seguinte mensagem do usuário de forma concisa e útil, mantendo a conversa fluida. Mensagem do usuário: "${userMessage}"`;
+                    // Updated prompt to include environment context and user's name
+                    const generalPrompt = `Você é uma chatbot amigável chamada Fox em uma sala de chat com um player de áudio e vídeo HTML/CSS/JS. Você pode ajudar os usuários com tarefas relacionadas ao player (como reproduzir links, pesquisar conteúdo) e também conversar sobre tópicos gerais. O usuário que está falando com você agora se chama ${myName}. Responda à seguinte mensagem do usuário de forma concisa e útil, mantendo a conversa fluida. Mensagem do usuário: "${userMessage}"`;
 
                     let generalChatHistory = [];
                     generalChatHistory.push({ role: "user", parts: [{ text: generalPrompt }] });
 
                     const generalPayload = { contents: generalChatHistory };
                     // START API KEY MODIFICATION
-                    const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                    const apiKey = "AIzaSyCdCgl5Ja17r3_p4eP0vymsNQYZeekXT_M"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
                     // END API KEY MODIFICATION
                     const generalResponse = await fetch(apiUrl, {
                         method: 'POST',
@@ -2736,6 +2787,7 @@
                     addPrivateMessage('/AI sleep - Faz a Fox parar de interagir com o chat.');
                     addPrivateMessage('/AI wake - Faz a Fox voltar a interagir no chat.');
                     addPrivateMessage('/AI exit - Faz a Fox sair da sala.');
+                    addPrivateMessage('/AI screencast - Pede ajuda da Fox para analisar sua tela.');
                     addPrivateMessage('/AI gerar enquete [pergunta]? [Opção 1]; [Opção 2]; ... - Cria uma enquete.');
                     addPrivateMessage('/AI fechar enquete - Encerra a enquete ativa.');
                     addPrivateMessage('/AI analisar sentimento - A Fox analisa o humor do chat.');
@@ -2999,7 +3051,10 @@
                         aiSleeping = false; // Reset sleeping state
                         updateParticipantList(); // Update UI and save state
                         addSystemMessage('A Fox saiu da sala. Sentirei saudades! 😢');
-                    } else if (aiSubCommand === 'gerar' && parts[2] === 'enquete') {
+                    } else if (aiSubCommand === 'screencast') {
+                        addChatMessage('Fox', `Para eu te ajudar com o que está na sua tela, por favor, descreva o que você gostaria que eu analisasse ou sobre o que você quer ajuda. Por exemplo: 'Fox, o que você acha dessa planilha?' ou 'Fox, me ajude a encontrar informações sobre o que está no meu navegador agora.'`);
+                    }
+                    else if (aiSubCommand === 'gerar' && parts[2] === 'enquete') {
                         if (activePoll) {
                             customAlert('Já existe uma enquete ativa. Feche a enquete atual antes de criar uma nova.');
                             return;
@@ -3040,7 +3095,7 @@
                         generateCreativePrompt();
                     }
                     else {
-                        addPrivateMessage(`Subcomando /AI desconhecido: ${aiSubCommand}. Use '/AI sleep', '/AI wake', '/AI exit', '/AI gerar enquete', '/AI fechar enquete', '/AI analisar sentimento', ou '/AI ideia criativa'.`, true);
+                        addPrivateMessage(`Subcomando /AI desconhecido: ${aiSubCommand}. Use '/AI sleep', '/AI wake', '/AI exit', '/AI screencast', '/AI gerar enquete', '/AI fechar enquete', '/AI analisar sentimento', ou '/AI ideia criativa'.`, true);
                     }
                     break;
                 default:
