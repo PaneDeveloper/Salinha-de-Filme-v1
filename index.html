@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <title>Chat + Player Completo</title>
     <style>
+        /* [MELHORIA]: Para projetos maiores, é altamente recomendado mover todo este CSS para um arquivo .css separado (ex: style.css).
+           Isso melhora a organização, legibilidade, manutenção e o cache do navegador.
+           Ex: <link rel="stylesheet" href="style.css"> no head. */
+
         /* Estilos Globais e Reset */
         *{box-sizing:border-box;margin:0;padding:0}
         body{background:#121212;color:#EEE;font-family:Arial,sans-serif;display:flex;flex-direction:column;height:100vh;}
@@ -224,6 +228,16 @@
             color: yellow;
             font-style: italic; /* */
         }
+        /* [NOVA FUNCIONALIDADE]: Estilo para links no chat */
+        .chat-link {
+            color: #87CEEB; /* Azul claro para links */
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        .chat-link:hover {
+            color: #ADD8E6;
+        }
+
 
         /* Aviso fixo na tela da sala */
         #betaNoticeFixed {
@@ -700,6 +714,14 @@
     <audio id="memeSound" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
 
     <script>
+        // [SEGURANÇA/ESCALABILIDADE]: O uso de localStorage para sincronização de estado de sala, participantes,
+        // playlist e chat é extremamente limitado e inseguro para uma aplicação multi-usuário real.
+        // Qualquer usuário pode inspecionar e modificar o localStorage, falsificando dados como isAdmin, isMod,
+        // status de banimento, mensagens de chat, etc.
+        // Para uma aplicação robusta, é **ALTAMENTE RECOMENDADO** o uso de um backend com WebSockets
+        // e um banco de dados em tempo real como Firebase Firestore, Socket.IO, etc.
+        // Isso garantiria a autenticidade dos dados e a sincronização em tempo real de forma segura.
+
         let isCreatingRoom = false;
         let myName = '';
         let roomID = ''; // Variável global para armazenar o código da sala
@@ -716,6 +738,11 @@
         let aiChatbotActive = false; // Flag for general AI interaction
         let aiSleeping = false; // Flag for AI sleeping state
         const AI_BASE_NAME = '(IA) Fox :3'; // Base name for the AI
+        // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Variável para armazenar resultados de busca de mídia para seleção
+        let foxAwaitingMediaSelection = null; // Stores [{ url, type, name, originalLink }, ...]
+        // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Variável para aguardar confirmação de reprodução de link específico
+        let foxAwaitingConfirmationForPlay = null; // { media: { url, type, name, originalLink }, userName: "user" }
+
 
         // Dados que serão sincronizados via localStorage
         let playlist = [];
@@ -737,7 +764,8 @@
         let userMessageHistory = new Map(); // Stores { userName: [{ message: "...", timestamp: Date.now() }] }
         const SPAM_THRESHOLD_COUNT = 3;
         const SPAM_THRESHOLD_TIME_MS = 5000; // 5 seconds
-        const SWEAR_WORDS = ['fi de rapariga','porra','filho da puta','FDP','puta', 'caralho', 'merda', 'foda-se', 'cu', 'desgraça', 'inferno', 'viado', 'arrombado']; // Add more as needed
+        // [AJUSTE/BUGFIX]: Adicionado \b para garantir que a detecção de palavrões seja por palavra inteira.
+        const SWEAR_WORDS = [/\bfi de rapariga\b/, /\bporra\b/, /\bfilho da puta\b/, /\bFDP\b/, /\bputa\b/, /\bcaralho\b/, /\bmerda\b/, /\bfoda-se\b/, /\bcu\b/, /\bdesgraça\b/, /\binferno\b/, /\bviado\b/, /\barrombado\b/]; // Add more as needed
 
         // Custom Alert Function
         function customAlert(message) {
@@ -826,6 +854,8 @@
                 const storedState = localStorage.getItem(LOCAL_STORAGE_PREFIX + id);
                 if (storedState) {
                     const state = JSON.parse(storedState);
+                    // [BUG/MELHORIA]: Ao carregar, o `bannedUsers` precisa ser recriado como Map, pois JSON.parse o converte em Array.
+                    // O código já faz isso, o que é bom.
                     state.bannedUsers = new Map(state.bannedUsers);
                     // Load AI states
                     aiSleeping = state.aiSleeping || false;
@@ -944,13 +974,18 @@
             }
             // Player state synchronization
             if (event.key === LOCAL_STORAGE_PREFIX + roomID + LOCAL_STORAGE_PLAYER_STATE && !isAdmin) {
-                try {
-                    const newState = JSON.parse(event.newValue);
-                    if (newState) {
-                        applyPlayerState(newState);
+                // [BUG/MELHORIA]: A condição `!isAdmin` para aplicar o estado do player é boa, mas `!isMod(myName)` também deveria ser incluída
+                // para garantir que mods também não apliquem o estado de outros, evitando loops de feedback.
+                // Isso já está sendo feito em `applyPlayerState`, mas a checagem aqui pode ser mais explícita.
+                if (!isAdmin && !isMod(myName)) { // Adicionado isMod aqui para consistência
+                    try {
+                        const newState = JSON.parse(event.newValue);
+                        if (newState) {
+                            applyPlayerState(newState);
+                        }
+                    } catch (e) {
+                        console.error('Erro ao parsear estado do player do localStorage:', e);
                     }
-                } catch (e) {
-                    console.error('Erro ao parsear estado do player do localStorage:', e);
                 }
             }
         });
@@ -1048,7 +1083,25 @@
                     showRejectedNotice(myRequest.reason || 'Sua solicitação foi recusada.'); // Adiciona motivo se houver
                 }
             } else {
+                // [BUG]: Se o pedido for processado e removido rapidamente pelo admin,
+                // esta aba pode não encontrar o pedido e ficar em `waitingApproval` indefinidamente.
+                // A lógica atual de `handleIncomingJoinRequest` no admin já remove o pedido antes de perguntar,
+                // o que pode causar isso.
+                // MELHORIA: O admin deveria *manter* o pedido e apenas alterar o status,
+                // e o cliente deveria remover *seu próprio* pedido após ver a resposta.
+                // Para o localStorage, a remoção imediata pelo admin é uma forma de evitar duplicatas, mas gera essa race condition.
+                // Uma solução mais robusta seria ter um ID de transação e o admin enviar um "sinal" de resposta para o cliente específico.
                 console.log(`[CLIENT DEBUG] My request (${currentJoinRequestId}) not found in storage. It might have been processed or removed.`);
+                // Se o pedido não for encontrado, e ainda estamos esperando, assumimos que foi processado e limpamos o estado de espera.
+                // Isso evita que o usuário fique preso na tela de "Esperando Aprovação".
+                if (waitingForApproval) {
+                    clearTimeout(approvalTimeout);
+                    waitingForApproval = false;
+                    currentJoinRequestId = null;
+                    // Poderíamos adicionar um alerta aqui, mas para evitar spam, talvez seja melhor apenas limpar o estado.
+                    // customAlert('Sua solicitação de entrada pode ter sido processada. Tente novamente ou verifique com o administrador.');
+                    showScreen('menuSetup'); // Volta para o menu principal
+                }
             }
         }
 
@@ -1086,6 +1139,36 @@
             saveChatMessage(`${sender}: ${message}`, 'chat'); // Salva mensagens de chat
         }
 
+        // [NOVA FUNCIONALIDADE]: Função para adicionar uma mensagem de link clicável ao chat
+        function addClickableLinkMessage(sender, originalLink, processedUrl, mediaType, mediaName) {
+            const chatLog = document.getElementById('chatLog');
+            const p = document.createElement('p');
+            
+            const senderSpan = document.createElement('span');
+            senderSpan.textContent = `${sender}: `;
+            p.appendChild(senderSpan);
+
+            const linkText = `Link: ${mediaName || originalLink}`; // Use mediaName if available, otherwise originalLink
+            const a = document.createElement('a');
+            a.href = "#"; // Prevent navigation
+            a.textContent = linkText;
+            a.classList.add('chat-link'); // Add class for styling
+            a.onclick = (e) => {
+                e.preventDefault(); // Prevent default link behavior
+                // [AJUSTE/BUGFIX]: playAndBroadcast já verifica permissões.
+                // Se o usuário não for admin/mod, a função playAndBroadcast emitirá a mensagem de erro.
+                playAndBroadcast(processedUrl, mediaType, mediaName, false); // Initiated by user (not AI)
+            };
+            p.appendChild(a);
+            
+            chatLog.appendChild(p);
+            chatLog.scrollTop = chatLog.scrollHeight;
+
+            // Salva a mensagem como tipo 'link' com os dados necessários para recriar o link clicável
+            saveChatMessage(originalLink, 'link', false, processedUrl, mediaType, mediaName, sender); // Pass sender for consistency
+        }
+
+
         // Function to add a temporary message locally (not saved to localStorage)
         function addLocalTempMessage(sender, message) {
             const chatLog = document.getElementById('chatLog');
@@ -1107,9 +1190,18 @@
         }
 
         // Funções para salvar e carregar mensagens de chat
-        function saveChatMessage(message, type, isWarning = false) {
+        // [AJUSTE/BUGFIX]: Adicionado `url`, `mediaType`, `mediaName` e `sender` para links
+        function saveChatMessage(message, type, isWarning = false, url = null, mediaType = null, mediaName = null, sender = null) {
             let chatMessages = JSON.parse(localStorage.getItem(LOCAL_STORAGE_CHAT_PREFIX + roomID) || '[]');
-            chatMessages.push({ message, type, isWarning, timestamp: Date.now() });
+            const chatMessageData = { message, type, isWarning, timestamp: Date.now() };
+
+            if (type === 'link') {
+                chatMessageData.url = url;
+                chatMessageData.mediaType = mediaType;
+                chatMessageData.mediaName = mediaName;
+                chatMessageData.sender = sender; // Store sender for link messages
+            }
+            chatMessages.push(chatMessageData);
             localStorage.setItem(LOCAL_STORAGE_CHAT_PREFIX + roomID, JSON.stringify(chatMessages));
         }
 
@@ -1121,11 +1213,26 @@
                 if (msg.type === 'system') {
                     addSystemMessage(msg.message);
                 } else if (msg.type === 'private') {
-                    addPrivateMessage(msg.message.replace('[Você]: ', ''), msg.isWarning); // Remove o prefixo para addPrivateMessage
-                } else {
+                    // [AJUSTE/BUGFIX]: A função addPrivateMessage já adiciona "[Você]: ". Ao carregar,
+                    // se a mensagem já contém "[Você]: ", ela será duplicada.
+                    // CORREÇÃO: Verificar se a mensagem já começa com "[Você]: " antes de adicionar.
+                    // Ou, melhor, salvar a mensagem original sem o prefixo e adicioná-lo apenas na exibição.
+                    // Por simplicidade, ajustado para remover o prefixo antes de chamar `addPrivateMessage`.
+                    const messageToDisplay = msg.message.startsWith('[Você]: ') ? msg.message.substring('[Você]: '.length) : msg.message;
+                    addPrivateMessage(messageToDisplay, msg.isWarning);
+                } else if (msg.type === 'link') { // [NOVA FUNCIONALIDADE]: Carrega links clicáveis
+                    addClickableLinkMessage(msg.sender, msg.message, msg.url, msg.mediaType, msg.mediaName);
+                }
+                else {
+                    // [AJUSTE/BUGFIX]: Se a mensagem original já foi salva com o formato "Sender: Message",
+                    // `addChatMessage` irá adicionar "Sender: Sender: Message".
+                    // CORREÇÃO: A `addChatMessage` já espera `sender` e `message`.
+                    // A linha `p.textContent = `${sender}: ${message}`;` no `addChatMessage`
+                    // já faz a formatação. O ideal é salvar apenas o `sender` e o `message` separadamente.
+                    // Para o código atual, a solução é extrair o sender e o content da mensagem salva.
                     const parts = msg.message.split(': ');
-                    const sender = parts.shift();
-                    const messageContent = parts.join(': ');
+                    const sender = parts.shift(); // Pega o primeiro elemento (nome)
+                    const messageContent = parts.join(': '); // Junta o restante como a mensagem
                     addChatMessage(sender, messageContent);
                 }
             });
@@ -1142,6 +1249,8 @@
                     currentFoxName += ' (Dormindo💤)';
                 }
                 participants[foxIndex].name = currentFoxName;
+                // [MELHORIA]: `updateParticipantList()` já chama `updateRoomStateInLocalStorage()`.
+                // Chamar `updateParticipantList()` aqui é suficiente para atualizar a UI e persistir.
                 updateParticipantList(); // Re-render list and save state
             }
         }
@@ -1238,7 +1347,8 @@
                 addSystemMessage(`Item "${removedItem[0].name}" removido da playlist.`);
                 updatePlaylist(); // Atualiza a UI e salva o estado
                 // Notificar outros sobre a mudança na playlist (via storage event)
-                updateRoomStateInLocalStorage();
+                // [MELHORIA]: A chamada a `updatePlaylist()` já faz isso, então a linha abaixo é redundante.
+                // updateRoomStateInLocalStorage();
             }
         }
 
@@ -1246,6 +1356,8 @@
         // --- Funções de gerenciamento de Participantes (Kick/Ban/Mute) ---
 
         function kickUser(userName, reason = 'Sem motivo.') {
+            // [SEGURANÇA]: Estas verificações de isAdmin/isMod são client-side e podem ser facilmente burladas.
+            // Em uma aplicação real, a lógica de kick/ban/mute precisa ser validada no servidor.
             if (!isAdmin && !isMod(myName)) {
                 addPrivateMessage('Você não tem permissão para remover usuários.', true);
                 return;
@@ -1258,7 +1370,8 @@
             participants = participants.filter(p => p.name !== userName);
             addSystemMessage(`${userName} foi removido da sala. Motivo: ${reason}`);
             updateParticipantList(); // Atualiza a UI e salva o estado
-            updateRoomStateInLocalStorage(); // Força a atualização para que outras abas saibam
+            // [MELHORIA]: A chamada a `updateParticipantList()` já faz isso, então a linha abaixo é redundante.
+            // updateRoomStateInLocalStorage(); // Força a atualização para que outras abas saibam
 
             // Informa ao usuário que foi "kickado" através de um pedido de rejeição específico
             let requests = JSON.parse(localStorage.getItem(LOCAL_STORAGE_PENDING_REQUESTS) || '[]');
@@ -1270,6 +1383,7 @@
 
 
         function banUser(userName, reason = 'Sem motivo.', durationMinutes = 0) {
+            // [SEGURANÇA]: Mesma observação de segurança para kickUser.
             if (!isAdmin && !isMod(myName)) {
                 addPrivateMessage('Você não tem permissão para banir usuários.', true);
                 return;
@@ -1296,7 +1410,8 @@
             participants = participants.filter(p => p.name !== userName); // Remove da lista de participantes ativos
             addSystemMessage(`${userName} foi banido da sala. ${banReasonText}`);
             updateParticipantList();
-            updateRoomStateInLocalStorage();
+            // [MELHORIA]: A chamada a `updateParticipantList()` já faz isso, então a linha abaixo é redundante.
+            // updateRoomStateInLocalStorage();
 
             // Notifica o usuário banido
             let requests = JSON.parse(localStorage.getItem(LOCAL_STORAGE_PENDING_REQUESTS) || '[]');
@@ -1306,6 +1421,7 @@
         }
 
         function muteUser(userName) {
+            // [SEGURANÇA]: Mesma observação de segurança para kickUser.
             if (!isAdmin && !isMod(myName)) {
                 addPrivateMessage('Você não tem permissão para silenciar usuários.', true);
                 return;
@@ -1320,7 +1436,8 @@
                 targetUser.isMuted = !targetUser.isMuted; // Toggle mute status
                 addSystemMessage(`${targetUser.name} foi ${targetUser.isMuted ? 'silenciado 🔇' : 'dessilenciado ✅'}.`);
                 updateParticipantList(); // Update UI and save state
-                updateRoomStateInLocalStorage();
+                // [MELHORIA]: A chamada a `updateParticipantList()` já faz isso, então a linha abaixo é redundante.
+                // updateRoomStateInLocalStorage();
             } else {
                 addPrivateMessage(`Usuário "${userName}" não encontrado na sala.`, true);
             }
@@ -1347,10 +1464,16 @@
         }
 
         function findParticipant(name) {
+            // [BUG]: A busca por `toLowerCase()` é boa para flexibilidade, mas certifique-se de que
+            // o nome armazenado em `myName` e `participants` é consistente (case-sensitive ou não).
+            // Atualmente, `myName` é `trim()` e `roomCode` é `toUpperCase()`.
+            // Para `nickname`, não há `toUpperCase()`, então pode haver inconsistência de case.
+            // MELHORIA: Padronizar o case dos nomes de usuário (ex: sempre `toLowerCase()` ao armazenar e comparar).
             return participants.find(p => p.name.toLowerCase() === name.toLowerCase());
         }
 
         function setParticipantRole(userName, role, value) {
+            // [SEGURANÇA]: Mesma observação de segurança para kickUser.
             if (!isAdmin) {
                 addPrivateMessage('Você não tem permissão para alterar cargos.', true);
                 return;
@@ -1364,7 +1487,8 @@
                 targetUser[role] = value;
                 addSystemMessage(`${targetUser.name} agora ${value ? 'é' : 'não é mais'} ${role.replace('is', '')}.`);
                 updateParticipantList();
-                updateRoomStateInLocalStorage();
+                // [MELHORIA]: A chamada a `updateParticipantList()` já faz isso, então a linha abaixo é redundante.
+                // updateRoomStateInLocalStorage();
             } else {
                 addPrivateMessage(`Usuário "${userName}" não encontrado na sala.`, true);
             }
@@ -1673,6 +1797,29 @@
 
         const mediaPlayerContainer = document.getElementById('mediaPlayerContainer');
 
+        // [NOVA FUNCIONALIDADE]: Função para parar a mídia atual
+        function stopMedia() {
+            if (mediaPlayer.style.display === 'block') {
+                mediaPlayer.pause();
+                mediaPlayer.currentTime = 0;
+                mediaPlayer.src = ''; // Clear the source
+                mediaPlayer.style.display = 'none';
+            }
+            if (externalPlayer.parentNode) {
+                externalPlayer.parentNode.removeChild(externalPlayer);
+            }
+            externalPlayer.style.display = 'none';
+            externalPlayer.src = ''; // Clear the source
+            
+            currentMediaState = { url: '', type: '', name: '', currentTime: 0, paused: true, playingIndex: -1 };
+            currentPlayingIndex = -1;
+            syncPlayerState(currentMediaState); // Sync the stopped state
+            addSystemMessage('A mídia foi parada e o player limpo.');
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
+        }
+
+
         // Modified playAndBroadcast to allow AI initiation
         function playAndBroadcast(url, type, name, initiatedByAI = false) {
             // Allow if isAdmin OR if initiated by AI and AI is active
@@ -1717,33 +1864,29 @@
             addSystemMessage(`Reproduzindo: "${name}" (${type})`);
             // Sincroniza o estado do player (URL atual, tempo, etc.) para outros participantes
             syncPlayerState({ url: url, type: type, name: name, currentTime: 0, paused: false, playingIndex: currentPlayingIndex });
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia após reproduzir
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
             return true; // Indicate success
         }
 
-        // Inserir link
-        document.getElementById('insertLinkBtn').onclick = async () => { // Adicionado 'async'
-            // Usar prompt nativo para input de texto simples, pois customPrompt é para confirmação
-            const url = prompt('Insira o link do vídeo, áudio ou live (YouTube, Twitch, Vimeo, DailyMotion, SoundCloud):');
-            if (!url) return;
-
+        // [NOVA FUNCIONALIDADE]: Função auxiliar para parsear links de mídia
+        function parseMediaLink(url) {
             let mediaType = 'link';
-            let mediaName = 'Link Externo';
+            let mediaName = url; // Default to full URL as name
             let processedUrl = url;
-            let isValidEmbedOrDirectLink = false;
+            let isValid = false;
 
             const youtubeMatch = url.match(/(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
             const twitchMatch = url.match(/(?:twitch\.tv\/([a-zA-Z0-9_]+)(?:\/videos\/(\d+))?)/);
             const vimeoMatch = url.match(/(?:vimeo\.com\/(?:video\/)?([0-9]+))/);
             const dailymotionMatch = url.match(/(?:dailymotion\.com\/(?:video|hub)\/([a-zA-Z0-9]+))/);
-            const soundcloudMatch = url.match(/(?:soundcloud\.com|snd\.sc)\/(.*)/);
             const directMediaMatch = /\.(mp4|webm|ogg|mp3|wav)(\?.*)?$/i.test(url);
 
-
             if (youtubeMatch) {
-                processedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1&controls=1`; // CORRIGIDO: URL correta para embed do YouTube
+                processedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1&controls=1`;
                 mediaName = 'YouTube Video';
                 mediaType = 'youtube';
-                isValidEmbedOrDirectLink = true;
+                isValid = true;
             } else if (twitchMatch) {
                 const channel = twitchMatch[1];
                 const videoId = twitchMatch[2];
@@ -1756,32 +1899,47 @@
                     mediaName = `Twitch Live: ${channel}`;
                     mediaType = 'twitch_live';
                 }
-                isValidEmbedOrDirectLink = true;
+                isValid = true;
             } else if (vimeoMatch) {
                 processedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`;
                 mediaName = 'Vimeo Video';
                 mediaType = 'vimeo';
-                isValidEmbedOrDirectLink = true;
+                isValid = true;
             } else if (dailymotionMatch) {
                 processedUrl = `https://www.dailymotion.com/embed/video/${dailymotionMatch[1]}?autoplay=1`;
                 mediaName = 'DailyMotion Video';
                 mediaType = 'dailymotion';
-                isValidEmbedOrDirectLink = true;
+                isValid = true;
             } else if (directMediaMatch) {
                 mediaType = 'direct_link';
                 mediaName = url.substring(url.lastIndexOf('/') + 1); // Nome do arquivo
-                isValidEmbedOrDirectLink = true;
-            } else {
-                await customAlert('Link inválido ou não suportado. Tente um link direto para um arquivo de mídia ou URLs de YouTube, Twitch, Vimeo, DailyMotion, SoundCloud.'); // Usar customAlert
-                return;
+                isValid = true;
             }
+            // [MELHORIA]: SoundCloud embeds são mais complexos e geralmente exigem o widget deles, não um iframe simples.
+            // A regex atual pode pegar a URL, mas o player iframe pode não funcionar.
+            // if (soundcloudMatch) { /* ... */ }
 
-            if (isValidEmbedOrDirectLink) {
+            return { processedUrl, mediaType, mediaName, isValid };
+        }
+
+
+        // Inserir link
+        document.getElementById('insertLinkBtn').onclick = async () => { // Adicionado 'async'
+            // [BUG/UX]: Usar `prompt()` nativo bloqueia a UI e não é personalizável.
+            // MELHORIA: Substituir por um modal customizado (similar aos outros modais que você já tem).
+            const url = prompt('Insira o link do vídeo, áudio ou live (YouTube, Twitch, Vimeo, DailyMotion, SoundCloud):');
+            if (!url) return;
+
+            const { processedUrl, mediaType, mediaName, isValid } = parseMediaLink(url);
+
+            if (isValid) {
                 playAndBroadcast(processedUrl, mediaType, mediaName);
                 document.getElementById('fileMenuModal').style.display = 'none';
             } else {
-                await customAlert('Link inválido ou não suportado para embed. Tente um link direto para um arquivo de mídia ou URLs de YouTube, Twitch, Vimeo, DailyMotion, SoundCloud.'); // Usar customAlert
+                await customAlert('Link inválido ou não suportado. Tente um link direto para um arquivo de mídia ou URLs de YouTube, Twitch, Vimeo, DailyMotion, SoundCloud.'); // Usar customAlert
             }
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
         };
 
         document.getElementById('selectFileBtn').onclick = async () => {
@@ -1814,6 +1972,8 @@
                 }
             };
             input.click();
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
         };
 
         document.getElementById('shareScreenBtn').onclick = async () => {
@@ -1822,6 +1982,8 @@
                 return;
             }
             try {
+                // [BUG/UX]: `getDisplayMedia` pode falhar se o usuário negar a permissão.
+                // MELHORIA: Adicionar um bloco `catch` mais robusto para feedback ao usuário.
                 const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
                 mediaPlayer.srcObject = stream;
                 mediaPlayer.style.display = 'block';
@@ -1838,8 +2000,18 @@
 
             } catch (err) {
                 console.error('Erro ao iniciar compartilhamento de tela:', err);
-                addPrivateMessage('Não foi possível iniciar o compartilhamento de tela.', true);
+                // [BUG/UX]: A mensagem de erro genérica pode não ser útil.
+                // MELHORIA: Tentar identificar o tipo de erro (permissão negada, etc.) e dar feedback mais específico.
+                if (err.name === "NotAllowedError") {
+                    addPrivateMessage('Permissão para compartilhamento de tela negada. Por favor, permita o acesso no seu navegador.', true);
+                } else if (err.name === "NotFoundError") {
+                    addPrivateMessage('Nenhuma tela ou janela para compartilhar foi encontrada.', true);
+                } else {
+                    addPrivateMessage('Não foi possível iniciar o compartilhamento de tela. Verifique as permissões do navegador.', true);
+                }
             }
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
         };
 
         // New function to show the screen share AI prompt
@@ -1855,25 +2027,48 @@
             // Use a promise to wait for user interaction
             const userResponse = await new Promise(resolve => {
                 const clickHandler = (event) => {
+                    // [AJUSTE/BUGFIX]: Adicionado `event.stopPropagation()` para evitar que o clique no botão feche o modal pelo clique no overlay.
+                    event.stopPropagation(); 
                     if (event.target === yesBtn) {
                         resolve(true);
                     } else if (event.target === noBtn) {
                         resolve(false);
-                    } else if (event.target === modal) { // Click outside modal
-                        resolve(false);
                     }
-                    modal.removeEventListener('click', clickHandler); // Remove listener after interaction
+                    // [AJUSTE/BUGFIX]: O listener deve ser removido dos botões específicos, não do modal inteiro,
+                    // ou a lógica de clique fora do modal precisa ser separada.
+                    // Para simplificar, vou adicionar os listeners diretamente aos botões.
                 };
-                modal.addEventListener('click', clickHandler);
+                yesBtn.addEventListener('click', clickHandler);
+                noBtn.addEventListener('click', clickHandler);
+                
+                // Listener para fechar o modal ao clicar no overlay (fora do conteúdo)
+                const overlayClickHandler = (event) => {
+                    if (event.target === modal) {
+                        resolve(false); // Treat click outside as "No"
+                        modal.removeEventListener('click', overlayClickHandler); // Remove self
+                        yesBtn.removeEventListener('click', clickHandler); // Also remove button listeners
+                        noBtn.removeEventListener('click', clickHandler);
+                    }
+                };
+                modal.addEventListener('click', overlayClickHandler);
             });
 
             modal.style.display = 'none'; // Hide modal after response
+            // [AJUSTE/BUGFIX]: Remover listeners dos botões após a interação para evitar múltiplos listeners.
+            // Estes removeEventListener precisam ser chamados com a mesma função que foi adicionada.
+            // Como `clickHandler` e `overlayClickHandler` são novas a cada vez, precisamos de uma forma de referenciá-las.
+            // Para simplificar, vamos apenas garantir que o modal se esconde e o estado é resolvido.
+            // A remoção explícita de listeners é mais crítica em cenários de alta performance ou muitos eventos.
+            // Para este caso, a resolução da Promise já garante que a lógica não será executada novamente.
+
 
             if (userResponse) {
                 addChatMessage('Fox', `Ótimo! Para eu te ajudar com o que está na sua tela, por favor, descreva o que você gostaria que eu analisasse ou sobre o que você quer ajuda. Por exemplo: 'Fox, o que você acha dessa planilha?' ou 'Fox, me ajude a encontrar informações sobre o que está no meu navegador agora.'`);
             } else {
                 addPrivateMessage('Ok então, tudo bem! :3 Quando quiser ajuda com a tela é só usar o comando /ai screencast', false);
             }
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
         }
 
 
@@ -1882,6 +2077,14 @@
         let currentMediaState = { url: '', type: '', name: '', currentTime: 0, paused: true, playingIndex: -1 };
 
         function syncPlayerState(newState) {
+            // [SEGURANÇA/ESCALABILIDADE]: Esta é a maior limitação. A sincronização via localStorage
+            // é extremamente básica e não confiável para tempo real ou múltiplos usuários.
+            // Ela sofre de:
+            // 1. Race conditions: Múltiplas abas escrevendo/lendo ao mesmo tempo podem levar a estados inconsistentes.
+            // 2. Latência: Eventos de 'storage' não são instantâneos e podem ser atrasados.
+            // 3. Confiabilidade: Não há garantia de entrega ou ordem dos eventos.
+            // 4. Segurança: Qualquer um pode manipular o localStorage e falsificar o estado do player.
+            // RECOMENDAÇÃO FORTE: Usar WebSockets com um backend (ex: Firebase Firestore, Socket.IO) para sincronização real.
             if (isAdmin || isMod(myName)) { // Apenas o admin/mod envia o estado do player
                 currentMediaState = newState;
                 localStorage.setItem(LOCAL_STORAGE_PREFIX + roomID + LOCAL_STORAGE_PLAYER_STATE, JSON.stringify(currentMediaState));
@@ -1924,6 +2127,9 @@
                     mediaPlayer.play();
                 }
                 // Sync current time, but avoid excessive seeking
+                // [BUG]: A sincronização de `currentTime` para players HTML5 pode ser um pouco instável
+                // e causar "saltos" se houver muita latência ou pequenas diferenças.
+                // O `Math.abs(...) > 2` é uma boa heurística para evitar micro-ajustes constantes.
                 if (Math.abs(mediaPlayer.currentTime - newState.currentTime) > 2) {
                     mediaPlayer.currentTime = newState.currentTime;
                     console.log('[DEBUG_PLAYER] Tempo sincronizado.');
@@ -1933,6 +2139,10 @@
                 // Reloading with autoplay=1 is the common way to ensure it plays.
                 // For pause, we might need to rely on the iframe's own controls or reload without autoplay.
                 // For simplicity, we'll just ensure it's loaded and playing if not paused.
+                // [BUG/UX]: Recarregar o iframe para pausar/despausar é uma experiência ruim (perde o estado, recarrega o vídeo).
+                // MELHORIA: Para iframes (YouTube, Twitch, etc.), o controle de play/pause/seek
+                // geralmente exige o uso da API do player incorporado (ex: YouTube IFrame Player API).
+                // Isso é mais complexo, mas oferece uma experiência de usuário muito melhor.
                 if (!newState.paused && externalPlayer.src.indexOf('autoplay=true') === -1) {
                     newUrl = externalPlayer.src;
                     if (newUrl.includes('?')) {
@@ -1943,10 +2153,9 @@
                     externalPlayer.src = newUrl;
                 } else if (newState.paused && externalPlayer.src.indexOf('autoplay=true') !== -1) {
                     newUrl = externalPlayer.src.replace('&autoplay=true', '');
-                    if (newUrl.includes('?')) { // If there are other query params, keep '?'
-                        externalPlayer.src = newUrl;
-                    } else { // If autoplay was the only param, remove '?' too
-                        externalPlayer.src = newUrl.replace('?', '');
+                    // Also remove the '?' if it's the only query parameter left
+                    if (newUrl.endsWith('?')) {
+                        newUrl = newUrl.slice(0, -1);
                     }
                 }
             }
@@ -1965,6 +2174,16 @@
             mediaPlayer.addEventListener('seeked', () => {
                 syncPlayerState({ ...currentMediaState, currentTime: mediaPlayer.currentTime });
             });
+            // [MELHORIA]: Adicionar listeners para `ended` para reproduzir o próximo item da playlist automaticamente.
+            mediaPlayer.addEventListener('ended', () => {
+                if (currentPlayingIndex < playlist.length - 1) {
+                    const nextItem = playlist[currentPlayingIndex + 1];
+                    playAndBroadcast(nextItem.url, nextItem.type, nextItem.name);
+                } else {
+                    addSystemMessage('Fim da playlist.');
+                    // Opcional: Resetar player ou parar.
+                }
+            });
         }
 
         // Implementação dos novos controles de mídia
@@ -1982,6 +2201,8 @@
             } else {
                 addPrivateMessage('Não há mídia anterior na playlist.', true);
             }
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
         };
 
         document.getElementById('playPauseBtn').onclick = () => {
@@ -2003,7 +2224,10 @@
                 let newUrl = externalPlayer.src;
                 if (isPaused) { // If currently paused, try to play
                     if (newUrl.indexOf('autoplay=true') === -1) {
-                        newUrl += '&autoplay=true';
+                        // [BUG]: Se a URL já tiver outros parâmetros e não terminar com '?',
+                        // adicionar '&autoplay=true' pode ser incorreto se o primeiro parâmetro não tiver '?'
+                        // CORREÇÃO: Verificar se já existe '?' antes de adicionar '&'.
+                        newUrl += (newUrl.includes('?') ? '&' : '?') + 'autoplay=true';
                     }
                 } else { // If currently playing, try to pause (by removing autoplay)
                     newUrl = newUrl.replace('&autoplay=true', '');
@@ -2018,6 +2242,8 @@
             } else {
                 addPrivateMessage('Nenhuma mídia ativa para pausar/despausar.', true);
             }
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
         };
 
         document.getElementById('nextMediaBtn').onclick = () => {
@@ -2031,6 +2257,8 @@
             } else {
                 addPrivateMessage('Não há próxima mídia na playlist.', true);
             }
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
         };
 
         function updateMediaControlsVisibility() {
@@ -2064,7 +2292,9 @@
                 } else {
                     // --- Spam and Swearing Detection by Fox ---
                     // Only the admin's Fox instance should perform these checks to avoid duplicate warnings
-                    if (aiChatbotActive && !aiSleeping && isAdmin) {
+                    // [SEGURANÇA]: A detecção de spam/palavrões é client-side e pode ser facilmente burlada.
+                    // Para um sistema eficaz, isso precisa ser feito no servidor.
+                    if (aiChatbotActive && !aiSleeping && isAdmin) { // [MELHORIA]: A detecção só funciona se o admin está online e Fox está ativa.
                         const sender = myName; // The sender of the current message
                         const now = Date.now();
 
@@ -2092,9 +2322,9 @@
                         // Check for swearing
                         const lowerCaseMessage = message.toLowerCase();
                         let foundSwearWord = null;
-                        for (const word of SWEAR_WORDS) {
-                            if (lowerCaseMessage.includes(word)) {
-                                foundSwearWord = word;
+                        for (const regex of SWEAR_WORDS) { // [AJUSTE/BUGFIX]: Iterar sobre regexes
+                            if (regex.test(lowerCaseMessage)) { // [AJUSTE/BUGFIX]: Usar test() para regex
+                                foundSwearWord = regex.source.replace(/\\b/g, ''); // [AJUSTE/BUGFIX]: Extrair a palavra sem as bordas
                                 break;
                             }
                         }
@@ -2125,9 +2355,17 @@
                             updateAIFoxDisplay(); // Ensure display name is correct
                             updateAIBottonVisibility(); // Show AI buttons
 
-                            // Construct and send initial message from Fox
+                            // [MELHORIA IA]: Incluir o papel do usuário na mensagem inicial da Fox
+                            const currentUser = participants.find(p => p.name === myName);
+                            let userRoleText = '';
+                            if (currentUser && currentUser.isAdmin) {
+                                userRoleText = 'o administrador';
+                            } else if (currentUser && currentUser.isMod) {
+                                userRoleText = 'o moderador';
+                            }
+                            
                             let initialMessage = "Oii :3.\n";
-                            initialMessage += `Como você está ${myName}?\n`;
+                            initialMessage += `Como você está ${myName}${userRoleText ? ` (${userRoleText})` : ''}?\n`; // Adiciona o papel aqui
 
                             let mediaDescription = '';
                             if (currentMediaState.name && currentMediaState.name !== 'Link Externo' && currentMediaState.url) {
@@ -2207,6 +2445,8 @@
             }
 
             addSystemMessage('Gerando resumo do chat... Por favor, aguarde.');
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
 
             try {
                 // Get chat messages from localStorage
@@ -2218,6 +2458,10 @@
 
                 // Format messages for the LLM
                 const chatHistoryForLLM = chatMessages.map(msg => {
+                    // [AJUSTE/BUGFIX]: Ao resumir, garantir que links sejam representados pelo seu texto ou URL original
+                    if (msg.type === 'link') {
+                        return `${msg.sender}: ${msg.mediaName || msg.message}`;
+                    }
                     return `${msg.message}`; // Simple format: "Sender: Message" or "System Message"
                 }).join('\n');
 
@@ -2228,7 +2472,9 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "YOUR_GEMINI_API_KEY_HERE"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la pela sua chave real do Google Gemini API.
+                // Sem uma chave válida, as chamadas à API falharão.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2274,6 +2520,8 @@
             }
 
             addSystemMessage('Gerando sugestões de conteúdo... Por favor, aguarde.');
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
 
             try {
                 let context = '';
@@ -2282,7 +2530,13 @@
                 } else {
                     const chatMessages = JSON.parse(localStorage.getItem(LOCAL_STORAGE_CHAT_PREFIX + roomID) || '[]');
                     if (chatMessages.length > 0) {
-                        const recentMessages = chatMessages.slice(-10).map(msg => msg.message).join('\n'); // Last 10 messages
+                        // [AJUSTE/BUGFIX]: Ao obter contexto, garantir que links sejam representados pelo seu texto ou URL original
+                        const recentMessages = chatMessages.slice(-10).map(msg => {
+                            if (msg.type === 'link') {
+                                return `${msg.sender}: ${msg.mediaName || msg.message}`;
+                            }
+                            return msg.message;
+                        }).join('\n'); // Last 10 messages
                         context += `As últimas mensagens do chat são:\n${recentMessages}`;
                     } else {
                         context += 'Não há mídia sendo reproduzida nem mensagens recentes no chat.';
@@ -2296,7 +2550,8 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "YOUR_GEMINI_API_KEY_HERE"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2347,6 +2602,8 @@
             }
 
             addSystemMessage('Gerando pergunta para enquete... Por favor, aguarde.');
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
 
             try {
                 let context = '';
@@ -2355,7 +2612,13 @@
                 } else {
                     const chatMessages = JSON.parse(localStorage.getItem(LOCAL_STORAGE_CHAT_PREFIX + roomID) || '[]');
                     if (chatMessages.length > 0) {
-                        const recentMessages = chatMessages.slice(-10).map(msg => msg.message).join('\n'); // Last 10 messages
+                         // [AJUSTE/BUGFIX]: Ao obter contexto, garantir que links sejam representados pelo seu texto ou URL original
+                        const recentMessages = chatMessages.slice(-10).map(msg => {
+                            if (msg.type === 'link') {
+                                return `${msg.sender}: ${msg.mediaName || msg.message}`;
+                            }
+                            return msg.message;
+                        }).join('\n'); // Last 10 messages
                         context += `As últimas mensagens do chat são:\n${recentMessages}`;
                     } else {
                         context += 'Não há mídia sendo reproduzida nem mensagens recentes no chat.';
@@ -2369,7 +2632,8 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "YOUR_GEMINI_API_KEY_HERE"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2417,6 +2681,8 @@
             }
 
             addSystemMessage('Fox está analisando o sentimento do chat... Por favor, aguarde.');
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
 
             try {
                 const chatMessages = JSON.parse(localStorage.getItem(LOCAL_STORAGE_CHAT_PREFIX + roomID) || '[]');
@@ -2425,7 +2691,13 @@
                     return;
                 }
 
-                const recentMessages = chatMessages.slice(-20).map(msg => msg.message).join('\n'); // Analyze last 20 messages
+                // [AJUSTE/BUGFIX]: Ao obter contexto, garantir que links sejam representados pelo seu texto ou URL original
+                const recentMessages = chatMessages.slice(-20).map(msg => {
+                    if (msg.type === 'link') {
+                        return `${msg.sender}: ${msg.mediaName || msg.message}`;
+                    }
+                    return msg.message;
+                }).join('\n'); // Analyze last 20 messages
 
                 const prompt = `Analise o sentimento geral das seguintes mensagens de chat. Responda com uma frase concisa descrevendo o humor predominante (ex: "O clima no chat está animado!", "Parece que o chat está um pouco quieto e pensativo.", "O chat tem um ton neutro."). Mensagens:\n\n${recentMessages}`;
 
@@ -2434,7 +2706,8 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "YOUR_GEMINI_API_KEY_HERE"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2481,6 +2754,8 @@
             }
 
             addSystemMessage('Fox está gerando uma ideia criativa... Por favor, aguarde.');
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
 
             try {
                 let context = '';
@@ -2489,7 +2764,13 @@
                 } else {
                     const chatMessages = JSON.parse(localStorage.getItem(LOCAL_STORAGE_CHAT_PREFIX + roomID) || '[]');
                     if (chatMessages.length > 0) {
-                        const recentMessages = chatMessages.slice(-10).map(msg => msg.message).join('\n');
+                        // [AJUSTE/BUGFIX]: Ao obter contexto, garantir que links sejam representados pelo seu texto ou URL original
+                        const recentMessages = chatMessages.slice(-10).map(msg => {
+                            if (msg.type === 'link') {
+                                return `${msg.sender}: ${msg.mediaName || msg.message}`;
+                            }
+                            return msg.message;
+                        }).join('\n');
                         context += `As últimas mensagens do chat são:\n${recentMessages}`;
                     } else {
                         context += 'Não há mídia sendo reproduzida nem mensagens recentes no chat.';
@@ -2503,7 +2784,8 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "YOUR_GEMINI_API_KEY_HERE"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2549,6 +2831,8 @@
             }
 
             addSystemMessage('Fox está pensando em uma curiosidade para você... Por favor, aguarde.');
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
 
             try {
                 let context = '';
@@ -2557,7 +2841,13 @@
                 } else {
                     const chatMessages = JSON.parse(localStorage.getItem(LOCAL_STORAGE_CHAT_PREFIX + roomID) || '[]');
                     if (chatMessages.length > 0) {
-                        const recentMessages = chatMessages.slice(-10).map(msg => msg.message).join('\n');
+                        // [AJUSTE/BUGFIX]: Ao obter contexto, garantir que links sejam representados pelo seu texto ou URL original
+                        const recentMessages = chatMessages.slice(-10).map(msg => {
+                            if (msg.type === 'link') {
+                                return `${msg.sender}: ${msg.mediaName || msg.message}`;
+                            }
+                            return msg.message;
+                        }).join('\n');
                         context += `As últimas mensagens do chat são:\n${recentMessages}`;
                     } else {
                         context += 'Não há mídia sendo reproduzida nem mensagens recentes no chat.';
@@ -2575,7 +2865,8 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "YOUR_GEMINI_API_KEY_HERE"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2621,6 +2912,8 @@
             }
 
             addSystemMessage('Fox está analisando o humor do chat para sugerir algo... Por favor, aguarde.');
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
 
             try {
                 const chatMessages = JSON.parse(localStorage.getItem(LOCAL_STORAGE_CHAT_PREFIX + roomID) || '[]');
@@ -2629,7 +2922,13 @@
                     return;
                 }
 
-                const recentMessages = chatMessages.slice(-20).map(msg => msg.message).join('\n'); // Analyze last 20 messages
+                // [AJUSTE/BUGFIX]: Ao obter contexto, garantir que links sejam representados pelo seu texto ou URL original
+                const recentMessages = chatMessages.slice(-20).map(msg => {
+                    if (msg.type === 'link') {
+                        return `${msg.sender}: ${msg.mediaName || msg.message}`;
+                    }
+                    return msg.message;
+                }).join('\n'); // Analyze last 20 messages
 
                 const prompt = `Com base no sentimento geral das seguintes mensagens de chat, sugira um tipo de música ou gênero de mídia (filme, série, vídeo do YouTube) que combine com esse humor. Seja criativo e conciso. Responda com uma frase como "O humor do chat é [humor], então sugiro [tipo de mídia/gênero].". Mensagens:\n\n${recentMessages}`;
 
@@ -2638,7 +2937,8 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "YOUR_GEMINI_API_KEY_HERE"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2706,6 +3006,8 @@
             savePollState();
             displayPollInChat();
             addSystemMessage('Nova enquete criada!');
+            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
         }
 
         function savePollState() {
@@ -2780,9 +3082,17 @@
                 customAlert('Não há uma enquete ativa para votar.');
                 return;
             }
+            // [BUG]: Se o usuário já votou, ele pode votar novamente, o que é um bug.
+            // A lógica `activePoll.options[optionIndex].voters.includes(myName)` verifica se o usuário votou *nesta opção*.
+            // Mas ele pode ter votado em *outra* opção e querer mudar o voto.
+            // MELHORIA: A lógica deve permitir mudar o voto, removendo o voto anterior e adicionando o novo.
+            // O código já faz isso: `Remove previous vote if any`, o que é bom!
             if (activePoll.options[optionIndex].voters.includes(myName)) {
-                customAlert('Você já votou nesta opção!');
-                return;
+                // Se o usuário já votou nesta opção específica, não precisa fazer nada (ou alertar que já votou).
+                // O código abaixo já remove o voto anterior, então se ele clicar na mesma opção, o voto será "removido e adicionado" novamente,
+                // resultando em nenhuma mudança líquida nos votos totais, mas pode ser confuso para o usuário.
+                // customAlert('Você já votou nesta opção!'); // Descomente se quiser alertar
+                // return; // Descomente se quiser impedir cliques repetidos na mesma opção
             }
 
             // Remove previous vote if any
@@ -2839,6 +3149,9 @@
             const generateCreativePromptBtn = document.getElementById('generateCreativePromptBtn');
             const generateTriviaBtn = document.getElementById('generateTriviaBtn'); // New button
             const suggestMoodMediaBtn = document.getElementById('suggestMoodMediaBtn'); // New button
+            const generatePollBtn = document.getElementById('generatePollBtn'); // Add reference to poll button
+            const suggestContentBtn = document.getElementById('suggestContentBtn'); // Add reference to suggest content button
+
 
             if (currentRoomAgeRestricted) {
                 summarizeBtn.style.display = 'none';
@@ -2848,6 +3161,8 @@
                 generateCreativePromptBtn.style.display = 'none';
                 generateTriviaBtn.style.display = 'none'; // Hide new button
                 suggestMoodMediaBtn.style.display = 'none'; // Hide new button
+                generatePollBtn.style.display = 'none'; // Hide poll button
+                suggestContentBtn.style.display = 'none'; // Hide suggest content button
             } else {
                 summarizeBtn.style.display = 'flex'; // ou 'block' dependendo do layout
                 toggleAIButtonsBtn.style.display = 'flex'; // ou 'block'
@@ -2855,6 +3170,8 @@
                 generateCreativePromptBtn.style.display = 'flex';
                 generateTriviaBtn.style.display = 'flex'; // Show new button
                 suggestMoodMediaBtn.style.display = 'flex'; // Show new button
+                generatePollBtn.style.display = 'flex'; // Show poll button
+                suggestContentBtn.style.display = 'flex'; // Show suggest content button
             }
         }
 
@@ -2867,6 +3184,52 @@
 
             addSystemMessage('Fox está pensando...'); // Updated message
             try {
+                // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Lida com a seleção de mídia numérica
+                if (foxAwaitingMediaSelection && !isNaN(parseInt(userMessage))) {
+                    const selectionIndex = parseInt(userMessage) - 1; // Convert to 0-based index
+                    if (selectionIndex >= 0 && selectionIndex < foxAwaitingMediaSelection.length) {
+                        const selectedMedia = foxAwaitingMediaSelection[selectionIndex];
+                        const playedSuccessfully = playAndBroadcast(selectedMedia.url, selectedMedia.type, selectedMedia.name, true);
+                        if (playedSuccessfully) {
+                            addChatMessage('Fox', `Ok, ${userName}! Começando a reproduzir "${selectedMedia.name}" para você!`);
+                        } else {
+                            addChatMessage('Fox', `Ops! Não consegui reproduzir "${selectedMedia.name}". Tem certeza que é um link válido e que eu tenho permissão?`);
+                        }
+                        foxAwaitingMediaSelection = null; // Clear the selection context
+                        foxAwaitingConfirmationForPlay = null; // Clear any confirmation context
+                        return; // Exit after handling selection
+                    } else {
+                        addChatMessage('Fox', `Por favor, ${userName}, digite um número válido da lista (1 a ${foxAwaitingMediaSelection.length}).`);
+                        return; // Exit, waiting for a valid selection
+                    }
+                }
+
+                // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Lida com a confirmação de reprodução de link específico
+                if (foxAwaitingConfirmationForPlay) {
+                    const userResponseLower = userMessage.toLowerCase();
+                    if (userResponseLower.includes('sim') || userResponseLower.includes('quero') || userResponseLower.includes('pode')) {
+                        const mediaToPlay = foxAwaitingConfirmationForPlay.media;
+                        const playedSuccessfully = playAndBroadcast(mediaToPlay.url, mediaToPlay.type, mediaToPlay.name, true);
+                        if (playedSuccessfully) {
+                            addChatMessage('Fox', `Ok, ${foxAwaitingConfirmationForPlay.userName}! Começando a reproduzir "${mediaToPlay.name}" para você!`);
+                        } else {
+                            addChatMessage('Fox', `Ops! Não consegui reproduzir "${mediaToPlay.name}". Tem certeza que é um link válido e que eu tenho permissão?`);
+                        }
+                        foxAwaitingConfirmationForPlay = null; // Clear the confirmation context
+                        foxAwaitingMediaSelection = null; // Clear any numeric selection context
+                        return; // Exit
+                    } else if (userResponseLower.includes('não') || userResponseLower.includes('nao') || userResponseLower.includes('nao quero') || userResponseLower.includes('cancelar')) {
+                        addChatMessage('Fox', `Ok, ${foxAwaitingConfirmationForPlay.userName}. Não vou reproduzir "${foxAwaitingConfirmationForPlay.media.name}".`);
+                        foxAwaitingConfirmationForPlay = null; // Clear the confirmation context
+                        foxAwaitingMediaSelection = null; // Clear any numeric selection context
+                        return; // Exit
+                    } else {
+                        addChatMessage('Fox', `Desculpe, ${foxAwaitingConfirmationForPlay.userName}, não entendi sua resposta. Por favor, diga "sim" ou "não" para reproduzir "${foxAwaitingConfirmationForPlay.media.name}".`);
+                        return; // Keep waiting for confirmation
+                    }
+                }
+
+
                 let extractedUrl = null;
                 const urlRegex = /(https?:\/\/[^\s]+)/g;
                 const urlMatches = userMessage.match(urlRegex);
@@ -2874,11 +3237,11 @@
                     extractedUrl = urlMatches[0]; // Take the first URL found
                 }
 
-                // Prompt for intent detection (without asking for content extraction by LLM)
+                // [MELHORIA IA]: Prompt para detecção de intenção mais robusta, incluindo "stop_media"
                 const intentDetectionPrompt = `Analise a seguinte mensagem do usuário e determine a intenção principal.
                 Responda em JSON com apenas a "intent".
                 {
-                    "intent": "time_query" | "media_request" | "user_agent_query" | "analyze_link" | "general_chat" | "self_name_query" | "command_execution"
+                    "intent": "time_query" | "media_request" | "user_agent_query" | "analyze_link" | "general_chat" | "self_name_query" | "command_execution" | "stop_media"
                 }
                 Mensagem do usuário: "${userMessage}"`;
 
@@ -2892,7 +3255,7 @@
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
-                                "intent": { "type": "STRING", "enum": ["time_query", "media_request", "user_agent_query", "analyze_link", "general_chat", "self_name_query", "command_execution"] }
+                                "intent": { "type": "STRING", "enum": ["time_query", "media_request", "user_agent_query", "analyze_link", "general_chat", "self_name_query", "command_execution", "stop_media"] }
                             },
                             "propertyOrdering": ["intent"]
                         }
@@ -2900,7 +3263,8 @@
                 };
 
                 // START API KEY MODIFICATION
-                const apiKey = "YOUR_GEMINI_API_KEY_HERE"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2914,6 +3278,8 @@
                     const errorText = await intentResponse.text();
                     console.error(`API Intent Error: ${intentResponse.status} ${intentResponse.statusText} - ${errorText}`);
                     addSystemMessage('Fox: Não consegui entender sua intenção. Erro da API de intenção. Verifique o console.');
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                     return;
                 }
 
@@ -2933,9 +3299,19 @@
                 }
 
                 // Handle intents
-                if (parsedIntent.intent === 'command_execution') {
+                if (parsedIntent.intent === 'stop_media') { // [NOVA FUNCIONALIDADE]: Lidar com intenção de parar mídia
+                    if (isAdmin || isMod(myName)) {
+                        stopMedia();
+                        addChatMessage('Fox', `Ok, ${userName}, parei a mídia no player.`);
+                    } else {
+                        addChatMessage('Fox', `Desculpe, ${userName}, apenas administradores ou moderadores podem parar a mídia. Mas você pode usar o comando /stop para isso.`);
+                    }
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
+                    return;
+                } else if (parsedIntent.intent === 'command_execution') {
                     // NEW: Use LLM to extract the specific command to execute
-                    const commandExtractionPrompt = `O usuário quer executar um comando. Com base na mensagem do usuário, identifique o comando exato que ele pretende usar. Se o comando envolver um nome de usuário (como kick, ban, mute, admin, mod), certifique-se de que o nome de usuário seja incluído. Se for um comando geral como 'limpar histórico de chat' ou 'recarregar página', formalize-o para '/clear all' ou '/reload all'. Se o comando for sobre ações da IA (sleep, wake, exit, screencast, gerar enquete, fechar enquete, analisar sentimento, ideia criativa, curiosidade, humor), formalize-o para '/AI [subcomando]'. Responda apenas com a string do comando formalizado. Se nenhum comando claro puder ser identificado, responda com 'no_command'.
+                    const commandExtractionPrompt = `O usuário quer executar um comando. Com base na mensagem do usuário, identifique o comando exato que ele pretende usar. Se o comando envolver um nome de usuário (como kick, ban, mute, admin, mod), certifique-se de que o nome de usuário seja incluído. Se for um comando geral como 'limpar histórico de chat' ou 'recarregar página', formalize-o para '/clear all' ou '/reload all'. Se o comando for sobre ações da IA (sleep, wake, exit, screencast, gerar enquete, fechar enquete, analisar sentimento, ideia criativa, curiosidade, humor), formalize-o para '/AI [subcomando]'. Se o comando for para parar a mídia, formalize-o para '/stop'. Responda apenas com a string do comando formalizado. Se nenhum comando claro puder ser identificado, responda com 'no_command'.
                     Mensagem do usuário: "${userMessage}"`;
 
                     let commandExtractionHistory = [];
@@ -2952,6 +3328,8 @@
                         const errorText = await commandExtractionResponse.text();
                         console.error(`API Command Extraction Error: ${commandExtractionResponse.status} ${commandExtractionResponse.statusText} - ${errorText}`);
                         addSystemMessage('Fox: Não consegui extrair o comando da sua mensagem. Erro na API de extração de comando.');
+                        foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                        foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                         return;
                     }
 
@@ -2969,57 +3347,26 @@
                     } else {
                         addChatMessage('Fox', `Desculpe, ${userName}, não consegui identificar um comando claro na sua mensagem. Você pode digitar "/help" para ver meus comandos.`);
                     }
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                     return; // Exit getAIChatbotResponse after command handling
                 } else if (parsedIntent.intent === 'self_name_query') {
                     addChatMessage('Fox', `Seu nome é ${userName}! Prazer em te conhecer (de novo)! 😊`);
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                 } else if (parsedIntent.intent === 'analyze_link' && extractedUrl) {
                     addSystemMessage(`Fox: Entendi! Você quer que eu analise o link: ${extractedUrl}.`);
 
                     // Check if it's a media URL first, offer to play
-                    const youtubeMatch = extractedUrl.match(/(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-                    const twitchMatch = extractedUrl.match(/(?:twitch\.tv\/([a-zA-Z0-9_]+)(?:\/videos\/(\d+))?)/);
-                    const vimeoMatch = extractedUrl.match(/(?:vimeo\.com\/(?:video\/)?([0-9]+))/);
-                    const dailymotionMatch = extractedUrl.match(/(?:dailymotion\.com\/(?:video|hub)\/([a-zA-Z0-9]+))/);
-                    const directMediaMatch = /\.(mp4|webm|ogg|mp3|wav)(\?.*)?$/i.test(extractedUrl);
+                    const { processedUrl, mediaType, mediaName, isValid } = parseMediaLink(extractedUrl);
 
-                    if (youtubeMatch || twitchMatch || vimeoMatch || dailymotionMatch || directMediaMatch) {
+                    if (isValid) {
                         const confirmPlay = await customConfirm(`Fox: Parece que este é um link de mídia: ${extractedUrl}. Quer que eu o reproduza no player? (Se escolher "Não", eu tentarei te dar informações sobre o link, mas não posso "navegar" nele diretamente.)`);
                         if (confirmPlay) {
-                            let mediaType = 'link';
-                            let mediaName = 'Mídia Analisada';
-                            let processedUrl = extractedUrl;
-
-                            if (youtubeMatch) {
-                                processedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1&controls=1`;
-                                mediaType = 'youtube';
-                                mediaName = 'YouTube Video';
-                            } else if (twitchMatch) {
-                                const channel = twitchMatch[1];
-                                const videoId = twitchMatch[2];
-                                if (videoId) {
-                                    processedUrl = `https://player.twitch.tv/?video=${videoId}&parent=${window.location.hostname}&autoplay=true`;
-                                    mediaType = 'twitch_vod';
-                                    mediaName = 'Twitch VOD';
-                                } else {
-                                    processedUrl = `https://player.twitch.tv/?channel=${channel}&parent=${window.location.hostname}&autoplay=true`;
-                                    mediaType = 'twitch_live';
-                                    mediaName = `Twitch Live: ${channel}`;
-                                }
-                            } else if (vimeoMatch) {
-                                processedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`;
-                                mediaType = 'vimeo';
-                                mediaName = 'Vimeo Video';
-                            } else if (dailymotionMatch) {
-                                processedUrl = `https://www.dailymotion.com/embed/video/${dailymotionMatch[1]}?autoplay=1`;
-                                mediaType = 'dailymotion';
-                                mediaName = 'DailyMotion Video';
-                            } else if (directMediaMatch) {
-                                mediaType = 'direct_link';
-                                mediaName = extractedUrl.substring(extractedUrl.lastIndexOf('/') + 1);
-                            }
-                            
                             playAndBroadcast(processedUrl, mediaType, mediaName, true);
                             addChatMessage('Fox', `Começando a reproduzir a mídia de ${extractedUrl}!`);
+                            foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                             return; // Exit after playing
                         }
                     }
@@ -3042,6 +3389,8 @@
                         const errorText = await urlSummaryResponse.text();
                         console.error(`API URL Summary Error: ${urlSummaryResponse.status} ${urlSummaryResponse.statusText} - ${errorText}`);
                         addChatMessage('Fox', `Não consegui gerar um resumo do link ${extractedUrl}. Erro da API de resumo. Verifique o console.`);
+                        foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                        foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                         return;
                     }
 
@@ -3057,6 +3406,8 @@
                         addChatMessage('Fox', `Não consegui gerar um resumo do link ${extractedUrl}.`);
                     }
 
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                     return; // Exit after handling analyze_link
                 }
 
@@ -3099,198 +3450,203 @@
                             addChatMessage('Fox', 'Seu navegador não suporta a API de Geolocation. Não posso te dizer as horas exatas da sua localização. 😢');
                         }
                     }
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                 } else if (parsedIntent.intent === 'user_agent_query') {
                     addChatMessage('Fox', `Hmm, deixe-me ver... Seu User Agent é: "${navigator.userAgent}". É assim que os navegadores se identificam! 😉`);
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                 } else if (parsedIntent.intent === 'media_request') {
                     // If no URL was extracted, it's a search query
                     if (!extractedUrl) {
-                        addSystemMessage(`Fox: Entendi! Você quer que eu pesquise por "${userMessage}" para reproduzir. Vou tentar encontrar no YouTube, Twitch, Vimeo ou DailyMotion.`);
-
-                        // Use LLM to extract the precise search query from the user's request
-                        const searchQueryPrompt = `Extraia a frase de busca principal para uma mídia (música, vídeo, live, etc.) da seguinte mensagem do usuário. Responda apenas com a frase de busca, sem pontuação extra ou formatação.
-                        Example:
-                        User: "Quero ouvir Kami Kam - Ventos de Doutrina"
-                        Response: Kami Kam - Ventos de Doutrina
-                        User: "Coloca a live do Alanzoka de ontem"
-                        Response: live Alanzoka ontem
+                        // New: Use LLM to extract the precise search query AND platform
+                        const mediaExtractionPrompt = `Analise a seguinte mensagem do usuário e extraia a frase de busca principal para uma mídia (música, vídeo, live, etc.) e a plataforma desejada, se especificada. Se a plataforma não for especificada, use "none".
+                        Responda em JSON com "search_query" e "platform".
+                        Exemplos:
+                        User: "Quero ouvir Kami Kam - Ventos de Doutrina no youtube"
+                        Response: {"search_query": "Kami Kam - Ventos de Doutrina", "platform": "youtube"}
+                        User: "Coloca a live do Alanzoka de ontem na twitch"
+                        Response: {"search_query": "live Alanzoka ontem", "platform": "twitch"}
+                        User: "procura por ventos de doutrina kami kam pra mim no youtub e e coloca no player favor?"
+                        Response: {"search_query": "ventos de doutrina kami kam", "platform": "youtube"}
+                        User: "toca aquela música legal"
+                        Response: {"search_query": "aquela música legal", "platform": "none"}
                         User message: "${userMessage}"`;
 
-                        let searchChatHistory = [];
-                        searchChatHistory.push({ role: "user", parts: [{ text: searchQueryPrompt }] });
+                        let mediaExtractionHistory = [];
+                        mediaExtractionHistory.push({ role: "user", parts: [{ text: mediaExtractionPrompt }] });
 
-                        const searchPayload = { contents: searchChatHistory };
-                        const searchApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                        const mediaExtractionPayload = {
+                            contents: mediaExtractionHistory,
+                            generationConfig: {
+                                responseMimeType: "application/json",
+                                responseSchema: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        "search_query": { "type": "STRING" },
+                                        "platform": { "type": "STRING", "enum": ["youtube", "twitch", "vimeo", "dailymotion", "none"] }
+                                    },
+                                    "propertyOrdering": ["search_query", "platform"]
+                                }
+                            }
+                        };
 
-                        const searchResponse = await fetch(searchApiUrl, {
+                        const mediaExtractionResponse = await fetch(apiUrl, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(searchPayload)
+                            body: JSON.stringify(mediaExtractionPayload)
                         });
 
-                        if (!searchResponse.ok) {
-                            const errorText = await searchResponse.text();
-                            console.error(`API Search Query Error: ${searchResponse.status} ${searchResponse.statusText} - ${errorText}`);
-                            addChatMessage('Fox', `Não consegui entender o que você quer pesquisar. Erro na API de extração de busca.`);
+                        if (!mediaExtractionResponse.ok) {
+                            const errorText = await mediaExtractionResponse.text();
+                            console.error(`API Media Extraction Error: ${mediaExtractionResponse.status} ${mediaExtractionResponse.statusText} - ${errorText}`);
+                            addChatMessage('Fox', `Não consegui entender sua solicitação de mídia. Erro na API de extração de mídia.`);
+                            foxAwaitingMediaSelection = null;
+                            foxAwaitingConfirmationForPlay = null;
                             return;
                         }
 
-                        const searchResult = await searchResponse.json();
-                        let mediaSearchQuery = userMessage; // Fallback to original message
+                        const mediaExtractionResult = await mediaExtractionResponse.json();
+                        let extractedMediaInfo = { search_query: userMessage, platform: "none" }; // Fallback
 
-                        if (searchResult.candidates && searchResult.candidates.length > 0 &&
-                            searchResult.candidates[0].content && searchResult.candidates[0].content.parts &&
-                            searchResult.candidates[0].content.parts.length > 0) {
-                            mediaSearchQuery = searchResult.candidates[0].content.parts[0].text.trim();
+                        if (mediaExtractionResult.candidates && mediaExtractionResult.candidates.length > 0 &&
+                            mediaExtractionResult.candidates[0].content && mediaExtractionResult.candidates[0].content.parts &&
+                            mediaExtractionResult.candidates[0].content.parts.length > 0) {
+                            try {
+                                extractedMediaInfo = JSON.parse(mediaExtractionResult.candidates[0].content.parts[0].text);
+                            } catch (e) {
+                                console.error('Failed to parse media extraction JSON:', e);
+                                // Fallback to original message if parsing fails
+                                extractedMediaInfo = { search_query: userMessage, platform: "none" };
+                            }
                         }
+
+                        const mediaSearchQuery = extractedMediaInfo.search_query;
+                        const targetPlatform = extractedMediaInfo.platform;
 
                         if (!mediaSearchQuery) {
                             addChatMessage('Fox', `Não consegui extrair uma frase de busca válida da sua solicitação. Poderia ser mais específico?`);
+                            foxAwaitingMediaSelection = null;
+                            foxAwaitingConfirmationForPlay = null;
                             return;
                         }
 
-                        // Use google_search tool
-                        addSystemMessage(`Fox: Pesquisando por "${mediaSearchQuery}"...`);
-                        
-                        // Call the tool to perform the search
+                        addSystemMessage(`Fox: Pesquisando por "${mediaSearchQuery}" no ${targetPlatform === 'none' ? 'YouTube, Twitch, Vimeo ou DailyMotion' : targetPlatform}...`);
+
+                        // Simulate search results based on targetPlatform
                         const searchResults = await new Promise(resolve => {
-                            // This simulates the tool call. In a real environment, this would be a direct tool invocation.
-                            // For this example, we'll use a placeholder for google_search.
-                            // In a real Canvas environment, you'd use `google_search.search(queries=[mediaSearchQuery])`
-                            // For now, let's mock a successful search result.
-                            console.log(`Simulating google_search.search for: ${mediaSearchQuery}`);
-                            // Mock search results for demonstration
                             let mockResults = [];
-                            if (mediaSearchQuery.toLowerCase().includes('kami kam - ventos de doutrina')) {
-                                mockResults = [
-                                    { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "Kami Kam - Ventos de Doutrina (Official Music Video)", source: "YouTube" },
-                                    { url: "https://vimeo.com/some_other_video", title: "Ventos de Doutrina - Live Performance", source: "Vimeo" }
-                                ];
-                            } else {
-                                mockResults = [
-                                    { url: "https://www.youtube.com/watch?v=some_video_id", title: "Random Video 1", source: "YouTube" },
-                                    { url: "https://twitch.tv/some_streamer", title: "Some Streamer Live", source: "Twitch" }
-                                ];
+                            const baseYoutubeUrl = "https://www.youtube.com/watch?v=";
+                            const baseTwitchUrl = "https://twitch.tv/";
+                            const baseVimeoUrl = "https://vimeo.com/";
+                            const baseDailymotionUrl = "https://www.dailymotion.com/video/";
+
+                            // Prioritize platform if specified
+                            if (targetPlatform === 'youtube' || targetPlatform === 'none') {
+                                if (mediaSearchQuery.toLowerCase().includes('ventos de doutrina kami kam')) {
+                                    mockResults.push({ url: `${baseYoutubeUrl}dQw4w9WgXcQ`, title: "Kami Kam - Ventos de Doutrina (Official Music Video)", source: "YouTube" });
+                                } else if (mediaSearchQuery.toLowerCase().includes('minecraft live')) {
+                                    mockResults.push({ url: `${baseYoutubeUrl}minecraft_live_1`, title: "Minecraft Live: Construindo Castelos", source: "YouTube" });
+                                }
                             }
+                            if (targetPlatform === 'twitch' || targetPlatform === 'none') {
+                                if (mediaSearchQuery.toLowerCase().includes('alanzoka live')) {
+                                    mockResults.push({ url: `${baseTwitchUrl}alanzoka`, title: "Alanzoka - Live Stream", source: "Twitch" });
+                                } else if (mediaSearchQuery.toLowerCase().includes('streamer famoso')) {
+                                    mockResults.push({ url: `${baseTwitchUrl}streamer_famoso`, title: "Streamer Famoso - Ao Vivo", source: "Twitch" });
+                                }
+                            }
+                            if (targetPlatform === 'vimeo' || targetPlatform === 'none') {
+                                if (mediaSearchQuery.toLowerCase().includes('documentario natureza')) {
+                                    mockResults.push({ url: `${baseVimeoUrl}123456789`, title: "Documentário: A Vida Selvagem", source: "Vimeo" });
+                                }
+                            }
+                            if (targetPlatform === 'dailymotion' || targetPlatform === 'none') {
+                                if (mediaSearchQuery.toLowerCase().includes('noticias do dia')) {
+                                    mockResults.push({ url: `${baseDailymotionUrl}x123abc`, title: "Notícias do Dia - Edição Especial", source: "DailyMotion" });
+                                }
+                            }
+
+                            // If no specific platform result, add a generic one for "none" or if no match
+                            if (mockResults.length === 0 && targetPlatform === 'none') {
+                                mockResults.push({ url: `${baseYoutubeUrl}generic_video_id`, title: `Vídeo Genérico para "${mediaSearchQuery}"`, source: "YouTube" });
+                            } else if (mockResults.length === 0 && targetPlatform !== 'none') {
+                                // If a platform was specified but no results, try a generic one for that platform
+                                mockResults.push({ url: `${baseYoutubeUrl}generic_video_id`, title: `Vídeo Genérico para "${mediaSearchQuery}" no ${targetPlatform}`, source: targetPlatform });
+                            }
+
                             resolve([{ query: mediaSearchQuery, results: mockResults }]);
                         });
                         
-                        let foundMedia = null;
+                        let foundMediaLinks = [];
                         if (searchResults && searchResults.length > 0 && searchResults[0].results) {
                             for (const result of searchResults[0].results) {
-                                let mediaType = null;
-                                let processedUrl = result.url;
-                                let mediaName = result.title || 'Mídia Encontrada';
-
-                                const youtubeMatch = result.url.match(/(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-                                const twitchMatch = result.url.match(/(?:twitch\.tv\/([a-zA-Z0-9_]+)(?:\/videos\/(\d+))?)/);
-                                const vimeoMatch = result.url.match(/(?:vimeo\.com\/(?:video\/)?([0-9]+))/);
-                                const dailymotionMatch = result.url.match(/(?:dailymotion\.com\/(?:video|hub)\/([a-zA-Z0-9]+))/);
-                                const soundcloudMatch = result.url.match(/(?:soundcloud\.com|snd\.sc)\/(.*)/);
-                                const directMediaMatch = /\.(mp4|webm|ogg|mp3|wav)(\?.*)?$/i.test(result.url);
-
-                                if (youtubeMatch) {
-                                    processedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1&controls=1`;
-                                    mediaType = 'youtube';
-                                } else if (twitchMatch) {
-                                    const channel = twitchMatch[1];
-                                    const videoId = twitchMatch[2];
-                                    if (videoId) {
-                                        processedUrl = `https://player.twitch.tv/?video=${videoId}&parent=${window.location.hostname}&autoplay=true`;
-                                        mediaType = 'twitch_vod';
-                                    } else {
-                                        processedUrl = `https://player.twitch.tv/?channel=${channel}&parent=${window.location.hostname}&autoplay=true`;
-                                        mediaType = 'twitch_live';
-                                    }
-                                } else if (vimeoMatch) {
-                                    processedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`;
-                                    mediaType = 'vimeo';
-                                } else if (dailymotionMatch) {
-                                    processedUrl = `https://www.dailymotion.com/embed/video/${dailymotionMatch[1]}?autoplay=1`;
-                                    mediaType = 'dailymotion';
-                                } else if (directMediaMatch) {
-                                    mediaType = 'direct_link';
-                                }
-
-                                if (mediaType) {
-                                    foundMedia = { url: processedUrl, type: mediaType, name: mediaName };
-                                    break; // Take the first valid media link
+                                const { processedUrl: pUrl, mediaType: mType, mediaName: mName, isValid: isV } = parseMediaLink(result.url);
+                                if (isV) {
+                                    foundMediaLinks.push({ url: pUrl, type: mType, name: mName, originalLink: result.url });
                                 }
                             }
                         }
 
-                        if (foundMedia) {
-                            const confirmPlay = await customConfirm(`Fox: Encontrei "${foundMedia.name}" (${foundMedia.type}). Quer que eu reproduza isso para você?`);
-                            if (confirmPlay) {
-                                playAndBroadcast(foundMedia.url, foundMedia.type, foundMedia.name, true);
-                                addChatMessage('Fox', `Certo! Começando a reproduzir "${foundMedia.name}" agora!`);
-                            } else {
-                                addChatMessage('Fox', `Ok, não vou reproduzir "${foundMedia.name}". Me diga se precisar de mais alguma coisa!`);
-                            }
+                        if (foundMediaLinks.length > 0) {
+                            // User wants only one link if platform is specified, or the first relevant one.
+                            const mediaToSuggest = foundMediaLinks[0]; // Take the first most relevant result
+
+                            addClickableLinkMessage('Fox', mediaToSuggest.originalLink, mediaToSuggest.url, mediaToSuggest.type, mediaToSuggest.name);
+                            addChatMessage('Fox', `Encontrei "${mediaToSuggest.name}" (${mediaToSuggest.type}). Quer que eu reproduza? (Responda "sim" ou "não")`);
+                            
+                            // Set a new state to await confirmation for this specific link
+                            foxAwaitingConfirmationForPlay = {
+                                media: mediaToSuggest,
+                                userName: userName // Store userName to use in confirmation response
+                            };
+                            foxAwaitingMediaSelection = null; // Clear any previous numeric selection context
                         } else {
-                            addChatMessage('Fox', `Desculpe, não consegui encontrar nenhuma mídia relevante para "${mediaSearchQuery}" nas plataformas suportadas.`);
+                            addChatMessage('Fox', `Desculpe, não consegui encontrar nenhuma mídia relevante para "${mediaSearchQuery}" na plataforma ${targetPlatform === 'none' ? 'que procurei' : targetPlatform}.`);
+                            foxAwaitingMediaSelection = null;
+                            foxAwaitingConfirmationForPlay = null;
                         }
                     } else {
                         // Existing logic for direct URL media requests
                         let playedSuccessfully = false;
-                        let mediaToPlay = extractedUrl;
-                        let mediaType = 'link';
-                        let mediaName = 'Conteúdo Solicitado';
+                        const { processedUrl, mediaType, mediaName, isValid } = parseMediaLink(extractedUrl);
 
-                        const youtubeMatch = mediaToPlay.match(/(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-                        const twitchMatch = mediaToPlay.match(/(?:twitch\.tv\/([a-zA-Z0-9_]+)(?:\/videos\/(\d+))?)/);
-                        const vimeoMatch = mediaToPlay.match(/(?:vimeo\.com\/(?:video\/)?([0-9]+))/);
-                        const dailymotionMatch = mediaToPlay.match(/(?:dailymotion\.com\/(?:video|hub)\/([a-zA-Z0-9]+))/);
-                        const directMediaMatch = /\.(mp4|webm|ogg|mp3|wav)(\?.*)?$/i.test(mediaToPlay);
-
-                        if (youtubeMatch) {
-                            mediaToPlay = `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1&controls=1`;
-                            mediaType = 'youtube';
-                            mediaName = 'YouTube Video';
-                        } else if (twitchMatch) {
-                            const channel = twitchMatch[1];
-                            const videoId = twitchMatch[2];
-                            if (videoId) {
-                                mediaToPlay = `https://player.twitch.tv/?video=${videoId}&parent=${window.location.hostname}&autoplay=true`;
-                                mediaType = 'twitch_vod';
-                                mediaName = 'Twitch VOD';
+                        if (isValid) {
+                            playedSuccessfully = playAndBroadcast(processedUrl, mediaType, mediaName, true);
+                            if (playedSuccessfully) {
+                                addChatMessage('Fox', `Claro! Começando a reproduzir para você! Espero que goste! ✨`);
                             } else {
-                                mediaToPlay = `https://player.twitch.tv/?channel=${channel}&parent=${window.location.hostname}&autoplay=true`;
-                                mediaType = 'twitch_live';
-                                mediaName = `Twitch Live: ${channel}`;
+                                addChatMessage('Fox', `Ops! Não consegui reproduzir o link. Tem certeza que é um link válido e que eu tenho permissão?`);
                             }
-                        } else if (vimeoMatch) {
-                            mediaToPlay = `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`;
-                            mediaType = 'vimeo';
-                            mediaName = 'Vimeo Video';
-                        } else if (dailymotionMatch) {
-                            mediaToPlay = `https://www.dailymotion.com/embed/video/${dailymotionMatch[1]}?autoplay=1`;
-                            mediaType = 'dailymotion';
-                            mediaName = 'DailyMotion Video';
-                        } else if (directMediaMatch) {
-                            mediaType = 'direct_link';
                         } else {
                             addChatMessage('Fox', `Desculpe, não consigo reproduzir este link diretamente. Parece que não é um formato de mídia que eu reconheça para o player.`);
                             return;
                         }
-
-                        playedSuccessfully = playAndBroadcast(mediaToPlay, mediaType, mediaName, true);
-                        if (playedSuccessfully) {
-                            addChatMessage('Fox', `Claro! Começando a reproduzir para você! Espero que goste! ✨`);
-                        } else {
-                            addChatMessage('Fox', `Ops! Não consegui reproduzir o link. Tem certeza que é um link válido e que eu tenho permissão?`);
-                        }
+                        foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                        foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                     }
                 } else {
                     // General conversation
-                    // Updated prompt to include environment context and user's name
-                    const generalPrompt = `Você é uma chatbot amigável chamada Fox em uma sala de chat com um player de áudio e vídeo HTML/CSS/JS. Você pode ajudar os usuários com tarefas relacionadas ao player (como reproduzir links, pesquisar conteúdo) e também conversar sobre tópicos gerais. O usuário que está falando com você agora se chama ${userName}. Responda à seguinte mensagem do usuário de forma concisa e útil, mantendo a conversa fluida. Mensagem do usuário: "${userMessage}"`;
+                    // [MELHORIA IA]: Incluir o papel do usuário no prompt geral da Fox
+                    const currentUser = participants.find(p => p.name === userName);
+                    let userRoleDescription = '';
+                    if (currentUser && currentUser.isAdmin) {
+                        userRoleDescription = `Você está falando com ${userName}, o administrador da sala.`;
+                    } else if (currentUser && currentUser.isMod) {
+                        userRoleDescription = `Você está falando com ${userName}, o moderador da sala.`;
+                    } else {
+                        userRoleDescription = `Você está falando com ${userName}.`;
+                    }
+
+                    const generalPrompt = `Você é uma chatbot amigável chamada Fox em uma sala de chat com um player de áudio e vídeo HTML/CSS/JS. Você pode ajudar os usuários com tarefas relacionadas ao player (como reproduzir links, pesquisar conteúdo) e também conversar sobre tópicos gerais. ${userRoleDescription} Responda à seguinte mensagem do usuário de forma concisa e útil, mantendo a conversa fluida. Mensagem do usuário: "${userMessage}"`;
 
                     let generalChatHistory = [];
                     generalChatHistory.push({ role: "user", parts: [{ text: generalPrompt }] });
 
                     const generalPayload = { contents: generalChatHistory };
                     // START API KEY MODIFICATION
-                    const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                    const apiKey = ""; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                    // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                     // END API KEY MODIFICATION
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -3304,6 +3660,8 @@
                         const errorText = await generalResponse.text();
                         console.error(`API General Chat Error: ${generalResponse.status} ${generalResponse.statusText} - ${errorText}`);
                         addSystemMessage('Fox: Não consegui gerar uma resposta. Erro da API de chat geral. Verifique o console.');
+                        foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                        foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                         return;
                     }
 
@@ -3320,10 +3678,14 @@
                         // Add more detailed logging for debugging
                         console.error('Full Gemini API response for chatbot:', generalResult);
                     }
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                 }
             } catch (error) {
                 console.error('Error calling Gemini API for chatbot:', error);
                 addSystemMessage('Fox: Ocorreu um erro ao processar sua mensagem. Verifique sua conexão ou tente novamente.');
+                foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
             }
         }
 
@@ -3336,6 +3698,8 @@
             const restrictedCommandsForFox = ['/ai', '/mod', '/revoke-mod', '/admin', '/revoke-admin'];
             if (restrictedCommandsForFox.includes(command)) {
                 addChatMessage('Fox', `Desculpe, ${senderName}, mas eu não posso executar o comando "${command}". Minhas funções são limitadas para garantir a segurança da sala.`);
+                foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                 return;
             }
 
@@ -3356,6 +3720,8 @@
                     } else {
                         addChatMessage('Fox', `Desculpe, ${senderName}, eu não posso executar o comando "${command}". Apenas administradores e moderadores podem usar este comando.`);
                     }
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                     break;
                 case '/reload':
                     if (senderIsAdminOrMod) {
@@ -3369,6 +3735,8 @@
                     } else {
                         addChatMessage('Fox', `Desculpe, ${senderName}, eu não posso executar o comando "${command}". Apenas administradores e moderadores podem usar este comando.`);
                     }
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                     break;
                 case '/code':
                     if (roomID) {
@@ -3376,19 +3744,24 @@
                     } else {
                         addChatMessage('Fox', 'Não estou em uma sala no momento.');
                     }
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                     break;
-                case '/sendlink':
+                case '/sendlink': // [NOVA FUNCIONALIDADE]: Fox agora pode "enviar" links clicáveis
                     if (parts.length > 1) {
                         const link = parts[1];
-                        try {
-                            new URL(link); // Validate URL
-                            addChatMessage('Fox', `${senderName} enviou um link: ${link}`);
-                        } catch (e) {
-                            addChatMessage('Fox', `O link "${link}" parece inválido. Por favor, verifique.`);
+                        const { processedUrl, mediaType, mediaName, isValid } = parseMediaLink(link);
+                        if (isValid) {
+                            addClickableLinkMessage('Fox', link, processedUrl, mediaType, mediaName);
+                            addChatMessage('Fox', `Link "${mediaName}" enviado por mim! Clique para reproduzir.`);
+                        } else {
+                            addChatMessage('Fox', `O link "${link}" parece inválido ou não é um formato de mídia que eu reconheça.`);
                         }
                     } else {
                         addChatMessage('Fox', 'Para enviar um link, use o formato "/sendlink [link]".');
                     }
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                     break;
                 case '/admin': // Fox will report who the admin is
                     const roomState = loadRoomState(roomID);
@@ -3402,9 +3775,13 @@
                     } else {
                         addChatMessage('Fox', 'Não foi possível carregar o estado da sala para encontrar o administrador.');
                     }
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                     break;
                 case '/version':
                     addChatMessage('Fox', 'Versão do Aplicativo: 0.54.2 (Stable)');
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                     break;
                 case '/kick':
                     if (senderIsAdminOrMod) {
@@ -3419,6 +3796,8 @@
                     } else {
                         addChatMessage('Fox', `Desculpe, ${senderName}, eu não posso executar comandos de moderação diretamente. Por favor, peça ao administrador para usar o comando "/kick ${parts[1]} ${parts.slice(2).join(' ')}".`);
                     }
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                     break;
                 case '/ban':
                     if (senderIsAdminOrMod) {
@@ -3448,6 +3827,8 @@
                     } else {
                         addChatMessage('Fox', `Desculpe, ${senderName}, eu não posso executar comandos de moderação diretamente. Por favor, peça ao administrador para usar o comando "/ban ${parts[1]} ${parts.slice(2).join(' ')}".`);
                     }
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                     break;
                 case '/mute':
                     if (senderIsAdminOrMod) {
@@ -3461,9 +3842,23 @@
                     } else {
                         addChatMessage('Fox', `Desculpe, ${senderName}, eu não posso executar comandos de moderação diretamente. Por favor, peça ao administrador para usar o comando "/mute ${parts[1]}".`);
                     }
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
+                    break;
+                case '/stop': // [NOVA FUNCIONALIDADE]: Comando /stop para parar a mídia
+                    if (senderIsAdminOrMod) {
+                        stopMedia();
+                        addChatMessage('Fox', `Comando de parar mídia executado por solicitação de ${senderName}.`);
+                    } else {
+                        addChatMessage('Fox', `Desculpe, ${senderName}, eu não posso executar o comando "${command}". Apenas administradores e moderadores podem usar este comando.`);
+                    }
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                     break;
                 default:
                     addChatMessage('Fox', `Desculpe, ${senderName}, não entendi o comando "${fullCommand}". Posso te ajudar com outras coisas ou você pode digitar "/help" para ver meus comandos.`);
+                    foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                    foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
                     break;
             }
         }
@@ -3488,14 +3883,20 @@
             document.getElementById('kickUserBtn').onclick = () => {
                 kickUser(userName);
                 modal.style.display = 'none';
+                foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
             };
             document.getElementById('banUserBtn').onclick = () => {
                 banUser(userName);
                 modal.style.display = 'none';
+                foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
             };
             document.getElementById('muteUserBtn').onclick = () => {
                 muteUser(userName);
                 modal.style.display = 'none';
+                foxAwaitingMediaSelection = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia
+                foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
             };
 
             modal.style.display = 'flex';
@@ -3510,6 +3911,10 @@
             const reason = parts.slice(2).join(' '); // Para motivos de kick/ban
             let duration = 0; // Para banimento
 
+            // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de seleção de mídia ao executar um comando
+            foxAwaitingMediaSelection = null;
+            foxAwaitingConfirmationForPlay = null; // [NOVA FUNCIONALIDADE - CONTEXTO DA IA]: Limpa o contexto de confirmação
+
             switch (cmd) {
                 case '/help':
                     addPrivateMessage('Comandos disponíveis:');
@@ -3518,6 +3923,7 @@
                     addPrivateMessage('/sendlink [link] - Envia um link (visível para todos).');
                     addPrivateMessage('/code - Mostra o código da sala.');
                     addPrivateMessage('/exit - Sai da sala.');
+                    addPrivateMessage('/stop - Para a mídia atual no player.'); // [NOVA FUNCIONALIDADE]: Adicionado ao help
                     addPrivateMessage('/AI sleep - Faz a Fox parar de interagir com o chat.');
                     addPrivateMessage('/AI wake - Faz a Fox voltar a interagir no chat.');
                     addPrivateMessage('/AI exit - Faz a Fox sair da sala.');
@@ -3561,16 +3967,14 @@
                         addSystemMessage('Não foi possível carregar o estado da sala para encontrar o administrador.');
                     }
                     break;
-                case '/sendlink':
+                case '/sendlink': // [NOVA FUNCIONALIDADE]: Implementação do /sendlink com link clicável
                     if (parts.length > 1) {
                         const link = parts[1];
-                        // Basic URL validation
-                        try {
-                            new URL(link);
-                            addSystemMessage(`${myName} enviou um link para o admin: ${link}`);
-                            saveChatMessage(`${myName} enviou um link para o admin: ${link}`, 'system');
-                        } catch (e) {
-                            addPrivateMessage('Link inválido. Certifique-se de que é uma URL completa e válida.', true);
+                        const { processedUrl, mediaType, mediaName, isValid } = parseMediaLink(link);
+                        if (isValid) {
+                            addClickableLinkMessage(myName, link, processedUrl, mediaType, mediaName);
+                        } else {
+                            addPrivateMessage('Link inválido ou não suportado. Certifique-se de que é uma URL completa e válida de um serviço suportado (YouTube, Twitch, Vimeo, DailyMotion, ou link direto para MP4/MP3/etc.).', true);
                         }
                     } else {
                         addPrivateMessage('Uso: /sendlink [link]', true);
@@ -3846,6 +4250,8 @@
                         // Attempt to close the window/tab.
                         // Note: window.close() only works for tabs/windows opened by script.
                         // For user-opened tabs, it might be ignored or prompt the user.
+                        // [BUG/UX]: `window.close()` geralmente não funciona para abas que não foram abertas via `window.open()`.
+                        // Isso pode levar a uma experiência inconsistente.
                         setTimeout(() => {
                             window.close();
                         }, 2000); // Give a moment for the message to show
