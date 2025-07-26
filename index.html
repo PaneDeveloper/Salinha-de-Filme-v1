@@ -934,6 +934,13 @@
                     loadChatMessages();
                 }
             }
+            // NEW: If the event is for the list of all active rooms, re-read it
+            if (event.key === LOCAL_STORAGE_ALL_ROOMS) {
+                console.log(`[STORAGE EVENT] Lista de salas ativas mudou. Recarregando.`);
+                // No need to call getAllActiveRooms() here, as it's called on demand.
+                // But this event signifies that the list *might* have changed,
+                // so subsequent calls to getAllActiveRooms() will get the latest.
+            }
             // Se o evento for para pedidos de entrada pendentes, e esta aba é a do admin
             if (event.key === LOCAL_STORAGE_PENDING_REQUESTS && isAdmin) {
                 console.log(`[STORAGE EVENT] Pedidos pendentes mudaram. Verificando...`);
@@ -1561,8 +1568,11 @@
             }
 
             // Verifica se a sala existe
-            const activeRooms = getAllActiveRooms();
-            const existingRoom = activeRooms.find(r => r.id === roomID);
+            const activeRooms = getAllActiveRooms(); // <--- Gets the list of rooms
+            const existingRoom = activeRooms.find(r => r.id === roomID); // <--- Checks if the room exists
+
+            console.log(`[DEBUG_JOIN] Checking for room ${roomID}. Active rooms:`, activeRooms);
+            console.log(`[DEBUG_JOIN] Found existingRoom:`, existingRoom);
 
             if (!existingRoom) {
                 const createNew = await customConfirm(`A sala ${roomID} não existe. Deseja criar uma Sala?`); // Usar customConfirm
@@ -2004,8 +2014,6 @@
                 // MELHORIA: Tentar identificar o tipo de erro (permissão negada, etc.) e dar feedback mais específico.
                 if (err.name === "NotAllowedError") {
                     addPrivateMessage('Permissão para compartilhamento de tela negada. Por favor, permita o acesso no seu navegador.', true);
-                } else if (err.name === "NotFoundError") {
-                    addPrivateMessage('Nenhuma tela ou janela para compartilhar foi encontrada.', true);
                 } else {
                     addPrivateMessage('Não foi possível iniciar o compartilhamento de tela. Verifique as permissões do navegador.', true);
                 }
@@ -2473,8 +2481,6 @@
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
                 const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
-                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la pela sua chave real do Google Gemini API.
-                // Sem uma chave válida, as chamadas à API falharão.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2551,7 +2557,6 @@
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
                 const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
-                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2633,7 +2638,6 @@
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
                 const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
-                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2707,7 +2711,6 @@
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
                 const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
-                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2785,7 +2788,6 @@
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
                 const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
-                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2866,7 +2868,6 @@
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
                 const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
-                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2938,7 +2939,6 @@
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
                 const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
-                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -3264,7 +3264,6 @@
 
                 // START API KEY MODIFICATION
                 const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
-                // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -3646,7 +3645,6 @@
                     const generalPayload = { contents: generalChatHistory };
                     // START API KEY MODIFICATION
                     const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
-                    // [BUG]: A chave da API está como "YOUR_GEMINI_API_KEY_HERE". Você precisa substituí-la.
                     // END API KEY MODIFICATION
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
