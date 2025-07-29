@@ -4,6 +4,8 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <title>Chat + Player Completo</title>
+    <!-- Tailwind CSS CDN para estilos básicos de login/logout -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* [MELHORIA]: Para projetos maiores, é altamente recomendado mover todo este CSS para um arquivo .css separado (ex: style.css).
            Isso melhora a organização, legibilidade, manutenção e o cache do navegador.
@@ -564,6 +566,20 @@
         <p id="namePromptInstruction" style="color:#CCC; margin-bottom: 0.5rem;"></p>
         <label for="nickname" class="sr-only">Nome de usuário</label>
         <input id="nickname" placeholder="Seu nome de usuário" aria-label="Campo para inserir o seu nome"/>
+        
+        <!-- Novo: Seção de Login com Google -->
+        <div class="mt-4 pt-4 border-t border-gray-600 w-full flex flex-col items-center">
+            <p id="google-auth-status" class="text-sm text-gray-400 mb-2">Faça login para usar seu nome Google.</p>
+            <button id="google-signin-button" class="google-btn flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors duration-200">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google icon" class="w-5 h-5 mr-2">
+                Entrar com Google
+            </button>
+            <button id="google-signout-button" class="btn bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors duration-200 mt-2 hidden">
+                Sair do Google
+            </button>
+        </div>
+        <!-- Fim: Seção de Login com Google -->
+
         <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem;">
             <input type="checkbox" id="ageRestrictionToggle" aria-label="Ativar restrição de idade +18"/>
             <label for="ageRestrictionToggle" style="color:#CCC;">Modo de Restrição de Idade +18</label>
@@ -712,6 +728,11 @@
     </div>
 
     <audio id="memeSound" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
+
+    <!-- Firebase SDKs -->
+    <!-- Importante: Use as versões mais recentes dos SDKs do Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
     <script>
         // [SEGURANÇA/ESCALABILIDADE]: O uso de localStorage para sincronização de estado de sala, participantes,
@@ -1604,15 +1625,21 @@
         document.getElementById('confirmAgeBtn').onclick = async () => {
             myName = document.getElementById('nickname').value.trim(); // Pega o nome do prompt anterior
             if (!myName) {
-                await customAlert('Por favor, digite seu nome de usuário.');
-                showScreen('namePrompt'); // Volta para o prompt de nome se estiver vazio
-                return;
+                // Se o nickname estiver vazio, mas o usuário estiver logado com o Google, usa o nome do Google
+                if (firebase.auth().currentUser && firebase.auth().currentUser.displayName) {
+                    myName = firebase.auth().currentUser.displayName;
+                } else {
+                    await customAlert('Por favor, digite seu nome de usuário.');
+                    showScreen('namePrompt'); // Volta para o prompt de nome se estiver vazio
+                    return;
+                }
             }
 
             // Verifica se o nome já está em uso na sala (para evitar colisões)
             const roomState = loadRoomState(roomID);
             if (roomState && roomState.participants.some(p => p.name === myName)) {
                 await customAlert(`O nome "${myName}" já está em uso nesta sala. Escolha outro nome.`);
+                document.getElementById('nickname').value = ''; // Limpa o nickname para o usuário tentar novamente
                 showScreen('namePrompt'); // Volta para o prompt de nome
                 return;
             }
@@ -1650,8 +1677,13 @@
         document.getElementById('enterRoom').onclick = async () => { // Adicionado 'async'
             myName = document.getElementById('nickname').value.trim();
             if (!myName) {
-                await customAlert('Por favor, digite seu nome de usuário.'); // Usar customAlert
-                return;
+                // Se o nickname estiver vazio, mas o usuário estiver logado com o Google, usa o nome do Google
+                if (firebase.auth().currentUser && firebase.auth().currentUser.displayName) {
+                    myName = firebase.auth().currentUser.displayName;
+                } else {
+                    await customAlert('Por favor, digite seu nome de usuário.'); // Usar customAlert
+                    return;
+                }
             }
 
             if (isCreatingRoom) {
@@ -1677,6 +1709,7 @@
                 const roomState = loadRoomState(roomID);
                 if (roomState && roomState.participants.some(p => p.name === myName)) {
                     await customAlert(`O nome "${myName}" já está em uso nesta sala. Escolha outro nome.`); // Usar customAlert
+                    document.getElementById('nickname').value = ''; // Limpa o nickname para o usuário tentar novamente
                     return;
                 }
                 
@@ -2066,8 +2099,7 @@
             // Estes removeEventListener precisam ser chamados com a mesma função que foi adicionada.
             // Como `clickHandler` e `overlayClickHandler` são novas a cada vez, precisamos de uma forma de referenciá-las.
             // Para simplificar, vamos apenas garantir que o modal se esconde e o estado é resolvido.
-            // A remoção explícita de listeners é mais crítica em cenários de alta performance ou muitos eventos.
-            // Para este caso, a resolução da Promise já garante que a lógica não será executada novamente.
+            // A resolução da Promise já garante que a lógica não será executada novamente.
 
 
             if (userResponse) {
@@ -2480,7 +2512,7 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2556,7 +2588,7 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2637,7 +2669,7 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2710,7 +2742,7 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2787,7 +2819,7 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2867,7 +2899,7 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2938,7 +2970,7 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -3263,7 +3295,7 @@
                 };
 
                 // START API KEY MODIFICATION
-                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -3509,10 +3541,10 @@
                         let extractedMediaInfo = { search_query: userMessage, platform: "none" }; // Fallback
 
                         if (mediaExtractionResult.candidates && mediaExtractionResult.candidates.length > 0 &&
-                            mediaExtractionResult.candidates[0].content && mediaExtractionResult.candidates[0].content.parts &&
-                            mediaExtractionResult.candidates[0].content.parts.length > 0) {
+                            mediaExtractionResult[0].content && mediaExtractionResult[0].content.parts &&
+                            mediaExtractionResult[0].content.parts.length > 0) {
                             try {
-                                extractedMediaInfo = JSON.parse(mediaExtractionResult.candidates[0].content.parts[0].text);
+                                extractedMediaInfo = JSON.parse(mediaExtractionResult[0].content.parts[0].text);
                             } catch (e) {
                                 console.error('Failed to parse media extraction JSON:', e);
                                 // Fallback to original message if parsing fails
@@ -3644,7 +3676,7 @@
 
                     const generalPayload = { contents: generalChatHistory };
                     // START API KEY MODIFICATION
-                    const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                    const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
                     // END API KEY MODIFICATION
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -4297,6 +4329,82 @@
         document.getElementById('betaNoticeContent').addEventListener('click', () => {
             document.getElementById('betaNoticeModal').style.display = 'none';
         });
+
+        // --- Firebase Google Login Integration ---
+        // Configuração do Firebase
+        // SUBSTITUA ESTE OBJETO COM AS SUAS PRÓPRIAS CREDENCIAIS DO FIREBASE
+        // Você as encontra no console do Firebase, em "Configurações do Projeto" -> "Seus apps"
+        const firebaseConfig = {
+            apiKey: "AIzaSyCNP_7tTErDAq6Tzo_n9vloMUSSpBvqbfQ", // <<<<<<< COLOQUE SUA CHAVE DA API DO FIREBASE AQUI >>>>>>>
+            authDomain: "player-android01.firebaseapp.com",
+            projectId: "player-android01",
+            storageBucket: "player-android01.firebasestorage.app",
+            messagingSenderId: "310557222580",
+            appId: "1:310557222580:web:a2d6ad7f9b93aad6b3d9e1"
+        };
+
+        // Inicializa o Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+        // Referências aos elementos HTML de autenticação
+        const googleAuthStatus = document.getElementById('google-auth-status');
+        const googleSignInButton = document.getElementById('google-signin-button');
+        const googleSignOutButton = document.getElementById('google-signout-button');
+        const nicknameInput = document.getElementById('nickname');
+
+        // Listener para o estado de autenticação do Firebase
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                // Usuário logado
+                googleAuthStatus.textContent = `Logado como: ${user.displayName || user.email}`;
+                googleSignInButton.classList.add('hidden');
+                googleSignOutButton.classList.remove('hidden');
+
+                // Preenche o nickname com o nome do Google se o campo estiver vazio
+                if (!nicknameInput.value.trim()) {
+                    nicknameInput.value = user.displayName || user.email || '';
+                }
+            } else {
+                // Usuário deslogado
+                googleAuthStatus.textContent = 'Faça login para usar seu nome Google.';
+                googleSignInButton.classList.remove('hidden');
+                googleSignOutButton.classList.add('hidden');
+                // Não limpa o nickname se o usuário já digitou algo
+            }
+        });
+
+        // Função para login com Google
+        googleSignInButton.addEventListener('click', () => {
+            auth.signInWithPopup(googleProvider)
+                .then((result) => {
+                    // Login bem-sucedido
+                    console.log("Usuário logado via Google:", result.user.displayName);
+                    // O onAuthStateChanged cuidará de atualizar a UI e o nickname
+                })
+                .catch((error) => {
+                    // Erro no login
+                    console.error("Erro no login com Google:", error);
+                    customAlert(`Erro no login com Google: ${error.message}`);
+                });
+        });
+
+        // Função para logout
+        googleSignOutButton.addEventListener('click', () => {
+            auth.signOut()
+                .then(() => {
+                    // Logout bem-sucedido
+                    console.log("Usuário deslogado do Google.");
+                    // O onAuthStateChanged cuidará de atualizar a UI
+                })
+                .catch((error) => {
+                    // Erro no logout
+                    console.error("Erro no logout:", error);
+                    customAlert(`Erro no logout: ${error.message}`);
+                });
+        });
+
     </script>
 </body>
 </html>
