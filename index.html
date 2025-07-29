@@ -2512,7 +2512,7 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2588,7 +2588,7 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2669,7 +2669,7 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2742,7 +2742,7 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2819,7 +2819,7 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2899,7 +2899,7 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -2970,7 +2970,7 @@
 
                 const payload = { contents: chatHistory };
                 // START API KEY MODIFICATION
-                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -3295,7 +3295,7 @@
                 };
 
                 // START API KEY MODIFICATION
-                const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
+                const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
                 // END API KEY MODIFICATION
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -3428,9 +3428,9 @@
                     const urlSummaryResult = await urlSummaryResponse.json();
 
                     if (urlSummaryResult.candidates && urlSummaryResult.candidates.length > 0 &&
-                        urlSummaryResult.candidates[0].content && urlSummaryResult.candidates[0].content.parts &&
-                        urlSummaryResult.candidates[0].content.parts.length > 0) {
-                        const urlSummaryText = urlSummaryResult.candidates[0].content.parts[0].text;
+                        urlSummaryResult[0].content && urlSummaryResult[0].content.parts &&
+                        urlSummaryResult[0].content.parts.length > 0) {
+                        const urlSummaryText = urlSummaryResult[0].content.parts[0].text;
                         addChatMessage('Fox', `Sobre o link ${extractedUrl}: ${urlSummaryText}`);
                     } else {
                         console.error('Gemini API response structure unexpected for URL summary:', urlSummaryResult);
@@ -3676,7 +3676,7 @@
 
                     const generalPayload = { contents: generalChatHistory };
                     // START API KEY MODIFICATION
-                    const apiKey = "SUA_API_KEY_AQUI"; // <<<<<<< COLOQUE SUA CHAVE DA_API DO GEMINI AQUI >>>>>>>
+                    const apiKey = "AIzaSyAOuzktFA0cXO6C5u4kug8TAOWd9h-wbUc"; // <<<<<<< COLOQUE SUA CHAVE DA API DO GEMINI AQUI >>>>>>>
                     // END API KEY MODIFICATION
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
