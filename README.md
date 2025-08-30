@@ -1,4 +1,4 @@
-# Player-HTML-CSS-JS-
+# Salinha-de-Filme-v1
 Criado por mim e pelo chatgpt, socorro, não aguento mais o github quebrar o codigo kkkkkk
 
 # Player de Áudio e Vídeo
