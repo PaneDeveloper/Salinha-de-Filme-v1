@@ -1,5 +1,5 @@
 # Salinha-de-Filme-v1
-Criado por mim e pelo chatgpt, socorro, não aguento mais o github quebrar o codigo kkkkkk
+Criado por mim e uns amigos :3
 
 # Player de Áudio e Vídeo
 
