@@ -1,4 +1,4 @@
-# Caros usários,
+# Caros usuários,
 essa versão do Projeto não está mais acessível!
 caso ainda queiram utilizar, por favor vá até https://cinema-virtual-v4.base44.app/v1.html
 
